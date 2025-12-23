@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "695306609058",
+    "project_id": "voicelocal-c43f0",
+    "storage_bucket": "voicelocal-c43f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:695306609058:android:213b6e388dde7c3f23d2fb",
+        "android_client_info": {
+          "package_name": "com.abdurazak.voicelocal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq1G4-jYC2B6kAbDYw9dRHD-48nCP97KQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
