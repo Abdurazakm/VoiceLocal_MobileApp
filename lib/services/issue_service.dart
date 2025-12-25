@@ -9,12 +9,7 @@ class IssueService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Cloudinary Configuration
-  final cloudinary = CloudinaryPublic(
-    'dqokyquo6', 
-    'voicelocal_preset', 
-    cache: false,
-  );
+  final cloudinary = CloudinaryPublic('dqokyquo6', 'voicelocal_preset', cache: false);
 
   // --- ISSUE METHODS ---
 
@@ -22,37 +17,46 @@ class IssueService {
     return _db.collection('Issues')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Issue.fromFirestore(doc))
-            .toList());
+        .map((snapshot) => snapshot.docs.map((doc) => Issue.fromFirestore(doc)).toList());
   }
 
   Future<String?> uploadToCloudinary(File file, bool isVideo) async {
     try {
       CloudinaryResponse response = await cloudinary.uploadFile(
-        CloudinaryFile.fromFile(
-          file.path,
-          resourceType: isVideo 
-              ? CloudinaryResourceType.Video 
-              : CloudinaryResourceType.Image,
-          folder: 'voicelocal_uploads',
-        ),
+        CloudinaryFile.fromFile(file.path, 
+        resourceType: isVideo ? CloudinaryResourceType.Video : CloudinaryResourceType.Image,
+        folder: 'voicelocal_uploads'),
       );
       return response.secureUrl; 
-    } catch (e) {
-      print("Cloudinary Error: $e");
-      return null;
-    }
+    } catch (e) { return null; }
   }
 
+  // UPDATED: Toggle Vote Logic (One user, one vote)
   Future<void> voteForIssue(String issueId) async {
     try {
-      await _db.collection('Issues').doc(issueId).update({
-        'voteCount': FieldValue.increment(1),
-      });
-    } catch (e) {
-      print("Error voting: $e");
-    }
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final docRef = _db.collection('Issues').doc(issueId);
+      final doc = await docRef.get();
+      if (!doc.exists) return;
+
+      List<dynamic> votedUids = doc.data()?['votedUids'] ?? [];
+
+      if (votedUids.contains(user.uid)) {
+        // User already voted -> Downvote (Remove)
+        await docRef.update({
+          'voteCount': FieldValue.increment(-1),
+          'votedUids': FieldValue.arrayRemove([user.uid]),
+        });
+      } else {
+        // User hasn't voted -> Upvote (Add)
+        await docRef.update({
+          'voteCount': FieldValue.increment(1),
+          'votedUids': FieldValue.arrayUnion([user.uid]),
+        });
+      }
+    } catch (e) { print("Error voting: $e"); }
   }
 
   Future<void> createIssue(String title, String description, String? fileUrl) async {
@@ -65,80 +69,42 @@ class IssueService {
       'attachmentUrl': fileUrl,
       'status': 'Open',
       'voteCount': 0,
+      'votedUids': [], // Initialize empty list
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  // UPDATED: Delete Issue
-  Future<void> deleteIssue(String issueId) async {
-    try {
-      await _db.collection('Issues').doc(issueId).delete();
-    } catch (e) {
-      print("Error deleting issue: $e");
-    }
+  Future<void> updateIssue(String id, String title, String desc) async {
+    await _db.collection('Issues').doc(id).update({'title': title, 'description': desc});
   }
 
-  // NEW FEATURE: Update Issue
-  Future<void> updateIssue(String issueId, String newTitle, String newDescription) async {
-    try {
-      await _db.collection('Issues').doc(issueId).update({
-        'title': newTitle,
-        'description': newDescription,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print("Error updating issue: $e");
-    }
+  Future<void> deleteIssue(String id) async {
+    await _db.collection('Issues').doc(id).delete();
   }
 
-  // --- DISCUSSION/COMMENT METHODS ---
+  // --- COMMENT METHODS ---
 
   Future<void> postComment(String issueId, String text, {String? parentId, String? replyToName}) async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      await _db.collection('Comments').add({
-        'issueId': issueId,
-        'userId': user.uid,
-        'userName': user.email?.split('@')[0] ?? 'User',
-        'text': text,
-        'parentId': parentId,
-        'replyToName': replyToName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      print("Error posting comment: $e");
-    }
+    final user = _auth.currentUser;
+    if (user == null) return;
+    await _db.collection('Comments').add({
+      'issueId': issueId, 'userId': user.uid, 'userName': user.email?.split('@')[0] ?? 'User',
+      'text': text, 'parentId': parentId, 'replyToName': replyToName, 'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
-  Future<void> updateComment(String commentId, String newText) async {
-    try {
-      await _db.collection('Comments').doc(commentId).update({
-        'text': newText,
-        'isEdited': true,
-      });
-    } catch (e) {
-      print("Error updating comment: $e");
-    }
+  Future<void> updateComment(String id, String text) async {
+    await _db.collection('Comments').doc(id).update({'text': text, 'isEdited': true});
   }
 
-  Future<void> deleteComment(String commentId) async {
-    try {
-      await _db.collection('Comments').doc(commentId).delete();
-    } catch (e) {
-      print("Error deleting comment: $e");
-    }
+  Future<void> deleteComment(String id) async {
+    await _db.collection('Comments').doc(id).delete();
   }
 
   Stream<List<Comment>> getComments(String issueId) {
-    return _db.collection('Comments')
-        .where('issueId', isEqualTo: issueId)
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromFirestore(doc))
-            .toList());
+    return _db.collection('Comments').where('issueId', isEqualTo: issueId)
+        .orderBy('createdAt', descending: false).snapshots()
+        .map((snaps) => snaps.docs.map((doc) => Comment.fromFirestore(doc)).toList());
   }
 }

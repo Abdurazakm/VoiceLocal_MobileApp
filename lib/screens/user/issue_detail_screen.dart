@@ -70,15 +70,15 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Report?"),
-        content: const Text("This will permanently remove this issue and all its data."),
+        content: const Text("This action cannot be undone."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           TextButton(
             onPressed: () async {
               await _issueService.deleteIssue(widget.issue.id);
               if (mounted) {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Exit detail screen
+                Navigator.pop(context);
+                Navigator.pop(context);
               }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -88,14 +88,13 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     );
   }
 
-  // --- COMMENT EDIT/DELETE LOGIC ---
+  // --- COMMENT LOGIC ---
 
   void _confirmDeleteComment(String commentId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Comment?"),
-        content: const Text("Are you sure you want to remove this comment?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           TextButton(
@@ -178,11 +177,51 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
       ),
       body: Column(
         children: [
-          ListTile(
-            title: Text(widget.issue.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            subtitle: Text(widget.issue.description),
+          // ISSUE HEADER WITH VOTING
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.issue.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                const SizedBox(height: 8),
+                Text(widget.issue.description, style: const TextStyle(fontSize: 16)),
+                const SizedBox(height: 16),
+                
+                // --- VOTING SECTION ---
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _issueService.voteForIssue(widget.issue.id),
+                      icon: Icon(
+                        widget.issue.votedUids.contains(uid) 
+                            ? Icons.thumb_up_alt 
+                            : Icons.thumb_up_alt_outlined, 
+                        size: 18
+                      ),
+                      label: Text(widget.issue.votedUids.contains(uid) ? "Voted" : "Vote"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: widget.issue.votedUids.contains(uid) 
+                            ? Colors.blue 
+                            : Colors.blue.shade50, 
+                        foregroundColor: widget.issue.votedUids.contains(uid) 
+                            ? Colors.white 
+                            : Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      "${widget.issue.voteCount} community members voted", 
+                      style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           const Divider(),
+          
+          // COMMENTS LIST
           Expanded(
             child: StreamBuilder<List<Comment>>(
               stream: _issueService.getComments(widget.issue.id),
@@ -229,8 +268,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: ElevatedButton(
+              style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
               onPressed: () => _showReplySheet(), 
               child: const Text("Add Comment")
             ),

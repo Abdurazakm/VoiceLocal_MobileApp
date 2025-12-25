@@ -7,6 +7,7 @@ class Issue {
   final String? attachmentUrl; 
   final String status; 
   final int voteCount;
+  final List<String> votedUids; // ADDED: To track who voted
   final String createdBy;
   final DateTime createdAt;
 
@@ -17,11 +18,11 @@ class Issue {
     this.attachmentUrl,
     required this.status,
     required this.voteCount,
+    required this.votedUids, // ADDED
     required this.createdBy,
     required this.createdAt,
   });
 
-  // Convert Firestore document to Issue object
   factory Issue.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     
@@ -32,6 +33,7 @@ class Issue {
       attachmentUrl: data['attachmentUrl'], 
       status: data['status'] ?? 'Open',
       voteCount: data['voteCount'] ?? 0,
+      votedUids: List<String>.from(data['votedUids'] ?? []), // ADDED: Convert dynamic list to String list
       createdBy: data['createdBy'] ?? '',
       createdAt: data['createdAt'] != null 
           ? (data['createdAt'] as Timestamp).toDate() 
@@ -39,7 +41,6 @@ class Issue {
     );
   }
 
-  // Convert Issue object to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'title': title,
@@ -47,15 +48,16 @@ class Issue {
       'attachmentUrl': attachmentUrl, 
       'status': status,
       'voteCount': voteCount,
+      'votedUids': votedUids, // ADDED
       'createdBy': createdBy,
       'createdAt': createdAt,
     };
   }
 
-  // ONLY ADDED: copyWith method to help with updating status or votes in the UI
   Issue copyWith({
     String? status,
     int? voteCount,
+    List<String>? votedUids, // ADDED
   }) {
     return Issue(
       id: id,
@@ -64,6 +66,7 @@ class Issue {
       attachmentUrl: attachmentUrl,
       status: status ?? this.status,
       voteCount: voteCount ?? this.voteCount,
+      votedUids: votedUids ?? this.votedUids, // ADDED
       createdBy: createdBy,
       createdAt: createdAt,
     );
