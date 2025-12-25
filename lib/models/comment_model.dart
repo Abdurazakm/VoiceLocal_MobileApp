@@ -9,6 +9,7 @@ class Comment {
   final String? parentId;
   final String? replyToName;
   final DateTime createdAt;
+  final bool isEdited; // Added this
 
   Comment({
     required this.id,
@@ -19,6 +20,7 @@ class Comment {
     this.parentId,
     this.replyToName,
     required this.createdAt,
+    this.isEdited = false, // Added this
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc) {
@@ -32,6 +34,7 @@ class Comment {
       parentId: data['parentId'],
       replyToName: data['replyToName'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isEdited: data['isEdited'] ?? false, // Added this
     );
   }
 }

@@ -3,7 +3,7 @@ import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/issue_model.dart'; 
-import '../models/comment_model.dart'; // Make sure this model file is created
+import '../models/comment_model.dart';
 
 class IssueService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -18,7 +18,6 @@ class IssueService {
 
   // --- ISSUE METHODS ---
 
-  // FR-6: Fetch issues for Home Screen
   Stream<List<Issue>> getIssues() {
     return _db.collection('Issues')
         .orderBy('createdAt', descending: true)
@@ -28,7 +27,6 @@ class IssueService {
             .toList());
   }
 
-  // FR-5: Media Upload
   Future<String?> uploadToCloudinary(File file, bool isVideo) async {
     try {
       CloudinaryResponse response = await cloudinary.uploadFile(
@@ -47,7 +45,6 @@ class IssueService {
     }
   }
 
-  // FR-8: Voting
   Future<void> voteForIssue(String issueId) async {
     try {
       await _db.collection('Issues').doc(issueId).update({
@@ -58,7 +55,6 @@ class IssueService {
     }
   }
 
-  // FR-4: Create Issue
   Future<void> createIssue(String title, String description, String? fileUrl) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -74,9 +70,30 @@ class IssueService {
     });
   }
 
+  // UPDATED: Delete Issue
+  Future<void> deleteIssue(String issueId) async {
+    try {
+      await _db.collection('Issues').doc(issueId).delete();
+    } catch (e) {
+      print("Error deleting issue: $e");
+    }
+  }
+
+  // NEW FEATURE: Update Issue
+  Future<void> updateIssue(String issueId, String newTitle, String newDescription) async {
+    try {
+      await _db.collection('Issues').doc(issueId).update({
+        'title': newTitle,
+        'description': newDescription,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print("Error updating issue: $e");
+    }
+  }
+
   // --- DISCUSSION/COMMENT METHODS ---
 
-  // Post a comment (John) or a linked reply (Alexa/Jack)
   Future<void> postComment(String issueId, String text, {String? parentId, String? replyToName}) async {
     try {
       final user = _auth.currentUser;
@@ -87,8 +104,8 @@ class IssueService {
         'userId': user.uid,
         'userName': user.email?.split('@')[0] ?? 'User',
         'text': text,
-        'parentId': parentId,      // This links Alexa to John, or Jack to Alexa
-        'replyToName': replyToName, // Used for the "@Alexa" redirect label
+        'parentId': parentId,
+        'replyToName': replyToName,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -96,11 +113,29 @@ class IssueService {
     }
   }
 
-  // Stream comments in order so the "Jump to Parent" logic works correctly
+  Future<void> updateComment(String commentId, String newText) async {
+    try {
+      await _db.collection('Comments').doc(commentId).update({
+        'text': newText,
+        'isEdited': true,
+      });
+    } catch (e) {
+      print("Error updating comment: $e");
+    }
+  }
+
+  Future<void> deleteComment(String commentId) async {
+    try {
+      await _db.collection('Comments').doc(commentId).delete();
+    } catch (e) {
+      print("Error deleting comment: $e");
+    }
+  }
+
   Stream<List<Comment>> getComments(String issueId) {
     return _db.collection('Comments')
         .where('issueId', isEqualTo: issueId)
-        .orderBy('createdAt', descending: false) // Oldest first for chronological reading
+        .orderBy('createdAt', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Comment.fromFirestore(doc))

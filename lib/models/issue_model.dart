@@ -4,8 +4,8 @@ class Issue {
   final String id;
   final String title;
   final String description;
-  final String? attachmentUrl; // Added: Stores the Cloudinary link
-  final String status; // "Open", "In Review", "Resolved"
+  final String? attachmentUrl; 
+  final String status; 
   final int voteCount;
   final String createdBy;
   final DateTime createdAt;
@@ -14,7 +14,7 @@ class Issue {
     required this.id,
     required this.title,
     required this.description,
-    this.attachmentUrl, // Optional field
+    this.attachmentUrl,
     required this.status,
     required this.voteCount,
     required this.createdBy,
@@ -29,11 +29,10 @@ class Issue {
       id: doc.id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
-      attachmentUrl: data['attachmentUrl'], // Maps the Firestore field
+      attachmentUrl: data['attachmentUrl'], 
       status: data['status'] ?? 'Open',
       voteCount: data['voteCount'] ?? 0,
       createdBy: data['createdBy'] ?? '',
-      // Safe check for null timestamps
       createdAt: data['createdAt'] != null 
           ? (data['createdAt'] as Timestamp).toDate() 
           : DateTime.now(),
@@ -45,11 +44,28 @@ class Issue {
     return {
       'title': title,
       'description': description,
-      'attachmentUrl': attachmentUrl, // Include in map
+      'attachmentUrl': attachmentUrl, 
       'status': status,
       'voteCount': voteCount,
       'createdBy': createdBy,
       'createdAt': createdAt,
     };
+  }
+
+  // ONLY ADDED: copyWith method to help with updating status or votes in the UI
+  Issue copyWith({
+    String? status,
+    int? voteCount,
+  }) {
+    return Issue(
+      id: id,
+      title: title,
+      description: description,
+      attachmentUrl: attachmentUrl,
+      status: status ?? this.status,
+      voteCount: voteCount ?? this.voteCount,
+      createdBy: createdBy,
+      createdAt: createdAt,
+    );
   }
 }

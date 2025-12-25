@@ -40,20 +40,26 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
     setState(() => _isUploading = true);
     
     String? fileUrl;
-    if (_selectedFile != null) {
-      // Updated to use the Cloudinary upload method with role-based folder logic
-      fileUrl = await _issueService.uploadToCloudinary(_selectedFile!, _isVideo);
+    try {
+      if (_selectedFile != null) {
+        // Updated to use the Cloudinary upload method with role-based folder logic
+        fileUrl = await _issueService.uploadToCloudinary(_selectedFile!, _isVideo);
+      }
+
+      // Stores issue details in Firestore as per FR-5
+      await _issueService.createIssue(
+        _titleController.text,
+        _descController.text,
+        fileUrl,
+      );
+    } catch (e) {
+      debugPrint("Error submitting issue: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+        Navigator.pop(context); // Return to home_screen
+      }
     }
-
-    // Stores issue details in Firestore as per FR-5
-    await _issueService.createIssue(
-      _titleController.text,
-      _descController.text,
-      fileUrl,
-    );
-
-    setState(() => _isUploading = false);
-    if (mounted) Navigator.pop(context); // Return to home_screen
   }
 
   @override
