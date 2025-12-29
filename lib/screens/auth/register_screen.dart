@@ -10,6 +10,7 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   // Controllers to capture user input
+  final _nameController = TextEditingController(); // New: Name controller
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -18,8 +19,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _isLoading = false;
 
   void _handleRegister() async {
-    // Basic validation
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    // Updated validation: Ensure name is not empty
+    if (_nameController.text.trim().isEmpty || 
+        _emailController.text.trim().isEmpty || 
+        _passwordController.text.trim().isEmpty) {
       _showError("Please fill in all fields");
       return;
     }
@@ -32,10 +35,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Calls FR-1: User Registration in your AuthService
+      // Calls updated register method with email, password, and name
       await _auth.register(
         _emailController.text.trim(),
         _passwordController.text.trim(),
+        _nameController.text.trim(),
       );
       
       // If successful, go back to login or let AuthGate redirect
@@ -52,6 +56,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -72,11 +85,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text("Register to report and vote on community issues"),
               const SizedBox(height: 30),
               
+              // NEW: Name Field
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: "Full Name",
+                  hintText: "Enter your full name",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 16),
+              
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: "Email Address",
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -87,6 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: const InputDecoration(
                   labelText: "Password",
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
               ),
@@ -97,6 +125,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: const InputDecoration(
                   labelText: "Confirm Password",
                   border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.lock_reset),
                 ),
                 obscureText: true,
               ),
@@ -108,11 +137,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
                         onPressed: _handleRegister,
-                        child: const Text("Register"),
+                        child: const Text("Register", style: TextStyle(fontSize: 16)),
                       ),
                     ),
               
+              const SizedBox(height: 10),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text("Already have an account? Login here"),

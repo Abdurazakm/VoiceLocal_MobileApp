@@ -5,18 +5,24 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // FR-1: User Registration
-  Future<User?> register(String email, String password) async {
+  // FR-1: User Registration - UPDATED to include name and profile fields
+  Future<User?> register(String email, String password, String name) async {
     try {
       UserCredential result = await _auth.createUserWithEmailAndPassword(
-          email: email, password: password);
+        email: email,
+        password: password,
+      );
       User? user = result.user;
 
       if (user != null) {
+        // Storing the full profile structure you requested
         await _db.collection('Users').doc(user.uid).set({
           'uid': user.uid,
+          'name': name,
           'email': email,
-          'role': 'user', 
+          'profilePic': "", // Default empty
+          'bio': "Resident of VoiceLocal", // Default bio
+          'role': 'user',
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -31,7 +37,9 @@ class AuthService {
   Future<User?> login(String email, String password) async {
     try {
       UserCredential result = await _auth.signInWithEmailAndPassword(
-          email: email, password: password);
+        email: email,
+        password: password,
+      );
       return result.user;
     } catch (e) {
       print("Login Error: $e");
@@ -53,21 +61,17 @@ class AuthService {
   }
 
   // Admin Credential Management
-  // Updated with verifyBeforeUpdateEmail for Firebase Auth 6+ compatibility
-  Future<void> updateAdminCredentials(String newEmail, String newPassword) async {
+  Future<void> updateAdminCredentials(
+    String newEmail,
+    String newPassword,
+  ) async {
     User? user = _auth.currentUser;
     if (user != null) {
       try {
-        // Modern Firebase way: Sends verification to the new email
         await user.verifyBeforeUpdateEmail(newEmail);
-        
-        // Update password
         await user.updatePassword(newPassword);
-        
-        // Update the email record in Firestore
-        await _db.collection('Users').doc(user.uid).update({
-          'email': newEmail,
-        });
+
+        await _db.collection('Users').doc(user.uid).update({'email': newEmail});
       } on FirebaseAuthException catch (e) {
         print("Credential Update Error: ${e.message}");
         rethrow;
@@ -77,4 +81,24 @@ class AuthService {
 
   // FR-3: Logout
   Future<void> logout() async => await _auth.signOut();
+
+  // Update user profile information
+  Future<void> updateUserProfile(
+    String uid, {
+    String? name,
+    String? bio,
+    String? profilePic,
+  }) async {
+    try {
+      Map<String, dynamic> updates = {};
+      if (name != null) updates['name'] = name;
+      if (bio != null) updates['bio'] = bio;
+      if (profilePic != null) updates['profilePic'] = profilePic;
+
+      await _db.collection('Users').doc(uid).update(updates);
+    } catch (e) {
+      print("Error updating profile: $e");
+      rethrow;
+    }
+  }
 }
