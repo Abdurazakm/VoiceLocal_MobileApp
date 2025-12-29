@@ -50,60 +50,93 @@ class UserHome extends StatelessWidget {
             itemBuilder: (context, index) {
               final issue = issues[index];
 
-              // Logic to check if media exists
-              bool hasMedia =
-                  issue.attachmentUrl != null &&
-                  issue.attachmentUrl!.isNotEmpty;
-              bool isVideo =
-                  hasMedia &&
-                  (issue.attachmentUrl!.contains(".mp4") ||
-                      issue.attachmentUrl!.contains("video/upload"));
+              bool hasMedia = issue.attachmentUrl != null && issue.attachmentUrl!.isNotEmpty;
+              bool isVideo = hasMedia && (issue.attachmentUrl!.contains(".mp4") || issue.attachmentUrl!.contains("video/upload"));
 
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: ListTile(
-                  // ADDED: Media Thumbnail for Image/Video
-                  leading: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: hasMedia
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: isVideo
-                                ? const Icon(Icons.videocam, color: Colors.blue)
-                                : Image.network(
-                                    issue.attachmentUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (context, error, stackTrace) =>
-                                            const Icon(Icons.broken_image),
-                                  ),
-                          )
-                        : const Icon(
-                            Icons.image_not_supported,
-                            color: Colors.grey,
-                          ),
-                  ),
-                  title: Text(
-                    issue.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text("${issue.status} • ${issue.voteCount} Votes"),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => IssueDetailScreen(issue: issue),
+                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: ListTile(
+                    leading: Container(
+                      width: 55,
+                      height: 55,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    );
-                  },
+                      child: hasMedia
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: isVideo
+                                  ? const Icon(Icons.videocam, color: Colors.blue)
+                                  : Image.network(
+                                      issue.attachmentUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image),
+                                    ),
+                            )
+                          : const Icon(Icons.image_not_supported, color: Colors.grey),
+                    ),
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          issue.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        const SizedBox(height: 4),
+                        // UPDATED: Added Region and Street info in the list view
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                            const SizedBox(width: 2),
+                            Text(
+                              "${issue.region}, ${issue.street}",
+                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                      ],
+                    ),
+                    subtitle: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: issue.status == 'Resolved' ? Colors.green[50] : Colors.orange[50],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            issue.status,
+                            style: TextStyle(
+                              color: issue.status == 'Resolved' ? Colors.green[700] : Colors.orange[700],
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text("• ${issue.voteCount} Votes", style: const TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => IssueDetailScreen(issue: issue),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               );
             },

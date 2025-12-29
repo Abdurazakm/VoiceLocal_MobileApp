@@ -78,8 +78,11 @@ class IssueService {
   Future<void> createIssue(
     String title,
     String description,
-    String? fileUrl,
-  ) async {
+    String? fileUrl, {
+    required String category,
+    required String region,
+    required String street,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -87,6 +90,9 @@ class IssueService {
       'title': title,
       'description': description,
       'attachmentUrl': fileUrl,
+      'category': category,
+      'region': region,
+      'street': street,
       'status': 'Open',
       'voteCount': 0,
       'votedUids': [], // Initialize empty list

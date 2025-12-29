@@ -4,10 +4,13 @@ class Issue {
   final String id;
   final String title;
   final String description;
+  final String category; // e.g., Water, Electric, Roads
+  final String region;   // e.g., Addis Ababa, Oromia, Amhara
+  final String street;   // New: Specific street name or landmark
   final String? attachmentUrl; 
   final String status; 
   final int voteCount;
-  final List<String> votedUids; // ADDED: To track who voted
+  final List<String> votedUids; 
   final String createdBy;
   final DateTime createdAt;
 
@@ -15,10 +18,13 @@ class Issue {
     required this.id,
     required this.title,
     required this.description,
+    required this.category,
+    required this.region,
+    required this.street, // Added street
     this.attachmentUrl,
     required this.status,
     required this.voteCount,
-    required this.votedUids, // ADDED
+    required this.votedUids, 
     required this.createdBy,
     required this.createdAt,
   });
@@ -30,10 +36,13 @@ class Issue {
       id: doc.id,
       title: data['title'] ?? '',
       description: data['description'] ?? '',
+      category: data['category'] ?? 'General',
+      region: data['region'] ?? 'Unknown',
+      street: data['street'] ?? 'No street provided', // Added street parsing
       attachmentUrl: data['attachmentUrl'], 
       status: data['status'] ?? 'Open',
       voteCount: data['voteCount'] ?? 0,
-      votedUids: List<String>.from(data['votedUids'] ?? []), // ADDED: Convert dynamic list to String list
+      votedUids: List<String>.from(data['votedUids'] ?? []), 
       createdBy: data['createdBy'] ?? '',
       createdAt: data['createdAt'] != null 
           ? (data['createdAt'] as Timestamp).toDate() 
@@ -45,10 +54,13 @@ class Issue {
     return {
       'title': title,
       'description': description,
+      'category': category,
+      'region': region,
+      'street': street, // Added street for Firestore
       'attachmentUrl': attachmentUrl, 
       'status': status,
       'voteCount': voteCount,
-      'votedUids': votedUids, // ADDED
+      'votedUids': votedUids, 
       'createdBy': createdBy,
       'createdAt': createdAt,
     };
@@ -57,16 +69,22 @@ class Issue {
   Issue copyWith({
     String? status,
     int? voteCount,
-    List<String>? votedUids, // ADDED
+    List<String>? votedUids,
+    String? category,
+    String? region,
+    String? street, // Added street to copyWith
   }) {
     return Issue(
       id: id,
       title: title,
       description: description,
+      category: category ?? this.category,
+      region: region ?? this.region,
+      street: street ?? this.street,
       attachmentUrl: attachmentUrl,
       status: status ?? this.status,
       voteCount: voteCount ?? this.voteCount,
-      votedUids: votedUids ?? this.votedUids, // ADDED
+      votedUids: votedUids ?? this.votedUids, 
       createdBy: createdBy,
       createdAt: createdAt,
     );
