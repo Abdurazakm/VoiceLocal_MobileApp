@@ -31,6 +31,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
   void _showStatusUpdateSheet(String issueId, String currentStatus) {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: ['Pending', 'In Progress', 'Resolved'].map((status) {
@@ -70,7 +73,11 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
             ? Container(
                 height: 200,
                 color: Colors.black87,
-                child: const Icon(Icons.play_circle_fill, color: Colors.white, size: 50),
+                child: const Icon(
+                  Icons.play_circle_fill,
+                  color: Colors.white,
+                  size: 50,
+                ),
               )
             : Image.network(
                 url,
@@ -91,27 +98,49 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16, right: 16, top: 16,
+          left: 16,
+          right: 16,
+          top: 16,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Edit Issue", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            TextField(controller: tEdit, decoration: const InputDecoration(labelText: "Title")),
-            TextField(controller: dEdit, decoration: const InputDecoration(labelText: "Description"), maxLines: 3),
-            const SizedBox(height: 10),
+            const Text(
+              "Edit Issue",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            TextField(
+              controller: tEdit,
+              decoration: const InputDecoration(labelText: "Title"),
+            ),
+            TextField(
+              controller: dEdit,
+              decoration: const InputDecoration(labelText: "Description"),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 45),
+              ),
               onPressed: () async {
                 if (tEdit.text.isEmpty) return;
-                await _issueService.updateIssue(currentIssue.id, tEdit.text, dEdit.text);
+                await _issueService.updateIssue(
+                  currentIssue.id,
+                  tEdit.text,
+                  dEdit.text,
+                );
                 if (mounted) Navigator.pop(context);
               },
               child: const Text("Update Issue"),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -125,13 +154,16 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
         title: const Text("Delete Report?"),
         content: const Text("This action cannot be undone."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () async {
               await _issueService.deleteIssue(id);
               if (mounted) {
-                Navigator.pop(context);
-                Navigator.pop(context);
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Back to previous screen
               }
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -141,16 +173,19 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     );
   }
 
-  void _confirmDeleteComment(String commentId) {
+  void _confirmDeleteComment(String commentId, String issueId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Delete Comment?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           TextButton(
             onPressed: () async {
-              await _issueService.deleteComment(commentId);
+              await _issueService.deleteComment(commentId, issueId);
               if (mounted) Navigator.pop(context);
             },
             child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -168,20 +203,33 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16, right: 16, top: 16,
+          left: 16,
+          right: 16,
+          top: 16,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: _commentController, autofocus: true),
+            TextField(
+              controller: _commentController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: "Edit your comment...",
+              ),
+            ),
+            const SizedBox(height: 10),
             ElevatedButton(
               onPressed: () async {
-                await _issueService.updateComment(comment.id, _commentController.text);
+                await _issueService.updateComment(
+                  comment.id,
+                  _commentController.text,
+                );
                 _commentController.clear();
-                Navigator.pop(context);
+                if (mounted) Navigator.pop(context);
               },
               child: const Text("Save"),
             ),
+            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -193,17 +241,33 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) => Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16, right: 16, top: 16,
+          left: 16,
+          right: 16,
+          top: 16,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(rName != null ? "Replying to @$rName" : "New Comment"),
-            TextField(controller: _commentController, autofocus: true),
+            Text(
+              rName != null ? "Replying to @$rName" : "New Comment",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: _commentController,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: "Type something..."),
+            ),
+            const SizedBox(height: 10),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 45),
+              ),
               onPressed: () async {
                 if (_commentController.text.isEmpty) return;
                 await _issueService.postComment(
@@ -213,10 +277,11 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                   replyToName: rName,
                 );
                 _commentController.clear();
-                Navigator.pop(context);
+                if (mounted) Navigator.pop(context);
               },
               child: const Text("Post"),
             ),
+            const SizedBox(height: 20),
           ],
         ),
       ),
@@ -228,7 +293,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('Issues').doc(widget.issue.id).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('Issues')
+          .doc(widget.issue.id)
+          .snapshots(),
       builder: (context, snapshot) {
         Issue currentIssue = snapshot.hasData && snapshot.data!.exists
             ? Issue.fromFirestore(snapshot.data!)
@@ -262,25 +330,38 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // TOP ROW: Category and Status
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Chip(
-                                  label: Text(currentIssue.category, style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                                  label: Text(
+                                    currentIssue.category,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   backgroundColor: Colors.blueAccent,
                                   visualDensity: VisualDensity.compact,
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: currentIssue.status == 'Resolved' ? Colors.green[100] : Colors.orange[100],
+                                    color: currentIssue.status == 'Resolved'
+                                        ? Colors.green[100]
+                                        : Colors.orange[100],
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     currentIssue.status,
                                     style: TextStyle(
-                                      color: currentIssue.status == 'Resolved' ? Colors.green[800] : Colors.orange[800],
+                                      color: currentIssue.status == 'Resolved'
+                                          ? Colors.green[800]
+                                          : Colors.orange[800],
                                       fontWeight: FontWeight.bold,
                                       fontSize: 11,
                                     ),
@@ -289,39 +370,68 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            // NEW: Region and Street Badges
                             Wrap(
                               spacing: 8,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[100],
-                                    border: Border.all(color: Colors.grey[300]!),
+                                    border: Border.all(
+                                      color: Colors.grey[300]!,
+                                    ),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.location_on, size: 12, color: Colors.redAccent),
+                                      const Icon(
+                                        Icons.location_on,
+                                        size: 12,
+                                        color: Colors.redAccent,
+                                      ),
                                       const SizedBox(width: 4),
-                                      Text(currentIssue.region, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                                      Text(
+                                        currentIssue.region,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[100],
-                                    border: Border.all(color: Colors.grey[300]!),
+                                    border: Border.all(
+                                      color: Colors.grey[300]!,
+                                    ),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.add_road, size: 12, color: Colors.blueGrey),
+                                      const Icon(
+                                        Icons.add_road,
+                                        size: 12,
+                                        color: Colors.blueGrey,
+                                      ),
                                       const SizedBox(width: 4),
-                                      Text(currentIssue.street, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                                      Text(
+                                        currentIssue.street,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -329,75 +439,152 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                             ),
                             const SizedBox(height: 16),
                             StreamBuilder<DocumentSnapshot>(
-                              stream: FirebaseFirestore.instance.collection('Users').doc(currentIssue.createdBy).snapshots(),
+                              stream: FirebaseFirestore.instance
+                                  .collection('Users')
+                                  .doc(currentIssue.createdBy)
+                                  .snapshots(),
                               builder: (context, userSnap) {
                                 String authorName = "Loading...";
                                 String? authorPic;
                                 if (userSnap.hasData && userSnap.data!.exists) {
-                                  final data = userSnap.data!.data() as Map<String, dynamic>;
+                                  final data =
+                                      userSnap.data!.data()
+                                          as Map<String, dynamic>;
                                   authorName = data['name'] ?? "User";
                                   authorPic = data['profilePic'];
                                 }
 
                                 return FutureBuilder<DocumentSnapshot>(
-                                  future: FirebaseFirestore.instance.collection('Users').doc(uid).get(),
+                                  future: FirebaseFirestore.instance
+                                      .collection('Users')
+                                      .doc(uid)
+                                      .get(),
                                   builder: (context, currentRoleSnap) {
                                     bool isCurrentUserAdmin = false;
-                                    if (currentRoleSnap.hasData && currentRoleSnap.data!.exists) {
-                                      isCurrentUserAdmin = (currentRoleSnap.data!.data() as Map<String, dynamic>)['role'] == 'admin';
+                                    if (currentRoleSnap.hasData &&
+                                        currentRoleSnap.data!.exists) {
+                                      isCurrentUserAdmin =
+                                          (currentRoleSnap.data!.data()
+                                              as Map<
+                                                String,
+                                                dynamic
+                                              >)['role'] ==
+                                          'admin';
                                     }
 
                                     return Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
                                       children: [
                                         GestureDetector(
-                                          onTap: () => _navigateToProfile(currentIssue.createdBy),
+                                          onTap: () => _navigateToProfile(
+                                            currentIssue.createdBy,
+                                          ),
                                           child: Row(
                                             children: [
                                               CircleAvatar(
                                                 radius: 18,
-                                                backgroundImage: (authorPic != null && authorPic.isNotEmpty) ? NetworkImage(authorPic) : null,
-                                                child: (authorPic == null || authorPic.isEmpty) ? const Icon(Icons.person, size: 20) : null,
+                                                backgroundImage:
+                                                    (authorPic != null &&
+                                                        authorPic.isNotEmpty)
+                                                    ? NetworkImage(authorPic)
+                                                    : null,
+                                                child:
+                                                    (authorPic == null ||
+                                                        authorPic.isEmpty)
+                                                    ? const Icon(
+                                                        Icons.person,
+                                                        size: 20,
+                                                      )
+                                                    : null,
                                               ),
                                               const SizedBox(width: 10),
-                                              Text(authorName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                                              Text(
+                                                authorName,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
                                         if (isCurrentUserAdmin)
                                           TextButton.icon(
-                                            onPressed: () => _showStatusUpdateSheet(currentIssue.id, currentIssue.status),
-                                            icon: const Icon(Icons.settings, size: 16),
-                                            label: const Text("Manage Status", style: TextStyle(fontSize: 12)),
+                                            onPressed: () =>
+                                                _showStatusUpdateSheet(
+                                                  currentIssue.id,
+                                                  currentIssue.status,
+                                                ),
+                                            icon: const Icon(
+                                              Icons.settings,
+                                              size: 16,
+                                            ),
+                                            label: const Text(
+                                              "Manage Status",
+                                              style: TextStyle(fontSize: 12),
+                                            ),
                                           ),
                                       ],
                                     );
-                                  }
+                                  },
                                 );
                               },
                             ),
                             const SizedBox(height: 12),
-                            Text(currentIssue.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                            Text(
+                              currentIssue.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
                             const SizedBox(height: 8),
-                            Text(currentIssue.description, style: const TextStyle(fontSize: 16)),
+                            Text(
+                              currentIssue.description,
+                              style: const TextStyle(fontSize: 16),
+                            ),
                             _buildMedia(currentIssue.attachmentUrl),
                             const SizedBox(height: 16),
                             Row(
                               children: [
                                 ElevatedButton.icon(
-                                  onPressed: () => _issueService.voteForIssue(currentIssue.id),
+                                  onPressed: () => _issueService.voteForIssue(
+                                    currentIssue.id,
+                                  ),
                                   icon: Icon(
-                                    currentIssue.votedUids.contains(uid) ? Icons.thumb_up_alt : Icons.thumb_up_alt_outlined,
+                                    currentIssue.votedUids.contains(uid)
+                                        ? Icons.thumb_up_alt
+                                        : Icons.thumb_up_alt_outlined,
                                     size: 18,
                                   ),
-                                  label: Text(currentIssue.votedUids.contains(uid) ? "Voted" : "Vote"),
+                                  label: Text(
+                                    currentIssue.votedUids.contains(uid)
+                                        ? "Voted"
+                                        : "Vote",
+                                  ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: currentIssue.votedUids.contains(uid) ? Colors.blue : Colors.blue.shade50,
-                                    foregroundColor: currentIssue.votedUids.contains(uid) ? Colors.white : Colors.blue,
+                                    backgroundColor:
+                                        currentIssue.votedUids.contains(uid)
+                                        ? Colors.blue
+                                        : Colors.blue.shade50,
+                                    foregroundColor:
+                                        currentIssue.votedUids.contains(uid)
+                                        ? Colors.white
+                                        : Colors.blue,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                Text("${currentIssue.voteCount} community members voted", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500, fontSize: 13)),
+                                Expanded(
+                                  child: Text(
+                                    "${currentIssue.voteCount} community members voted",
+                                    style: const TextStyle(
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
                               ],
                             ),
                           ],
@@ -417,59 +604,146 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                               bool isReply = c.parentId != null;
                               bool isOwner = c.userId == uid;
 
-                              if (isReply && !_visibleReplies.contains(c.parentId)) return const SizedBox.shrink();
+                              if (isReply &&
+                                  !_visibleReplies.contains(c.parentId))
+                                return const SizedBox.shrink();
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Padding(
-                                    padding: EdgeInsets.only(left: isReply ? 32 : 0),
+                                    padding: EdgeInsets.only(
+                                      left: isReply ? 32 : 0,
+                                    ),
                                     child: ListTile(
                                       leading: StreamBuilder<DocumentSnapshot>(
-                                        stream: FirebaseFirestore.instance.collection('Users').doc(c.userId).snapshots(),
+                                        stream: FirebaseFirestore.instance
+                                            .collection('Users')
+                                            .doc(c.userId)
+                                            .snapshots(),
                                         builder: (context, cUserSnap) {
                                           String? cPic;
-                                          if (cUserSnap.hasData && cUserSnap.data!.exists) {
-                                            cPic = (cUserSnap.data!.data() as Map<String, dynamic>)['profilePic'];
+                                          if (cUserSnap.hasData &&
+                                              cUserSnap.data!.exists) {
+                                            cPic =
+                                                (cUserSnap.data!.data()
+                                                    as Map<
+                                                      String,
+                                                      dynamic
+                                                    >)['profilePic'];
                                           }
                                           return GestureDetector(
-                                            onTap: () => _navigateToProfile(c.userId),
+                                            onTap: () =>
+                                                _navigateToProfile(c.userId),
                                             child: CircleAvatar(
                                               radius: 16,
-                                              backgroundImage: (cPic != null && cPic.isNotEmpty) ? NetworkImage(cPic) : null,
-                                              child: (cPic == null || cPic.isEmpty) ? const Icon(Icons.person, size: 16) : null,
+                                              backgroundImage:
+                                                  (cPic != null &&
+                                                      cPic.isNotEmpty)
+                                                  ? NetworkImage(cPic)
+                                                  : null,
+                                              child:
+                                                  (cPic == null || cPic.isEmpty)
+                                                  ? const Icon(
+                                                      Icons.person,
+                                                      size: 16,
+                                                    )
+                                                  : null,
                                             ),
                                           );
                                         },
                                       ),
                                       title: GestureDetector(
-                                        onTap: () => _navigateToProfile(c.userId),
-                                        child: Text(c.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
+                                        onTap: () =>
+                                            _navigateToProfile(c.userId),
+                                        child: Text(
+                                          c.userName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
                                       ),
                                       subtitle: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          if (c.replyToName != null) Text("@${c.replyToName}", style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                                          if (c.replyToName != null)
+                                            Text(
+                                              "@${c.replyToName}",
+                                              style: const TextStyle(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 12,
+                                              ),
+                                            ),
                                           Text(c.text),
-                                          if (!isReply && comments.any((reply) => reply.parentId == c.id))
+                                          if (!isReply &&
+                                              comments.any(
+                                                (reply) =>
+                                                    reply.parentId == c.id,
+                                              ))
                                             TextButton(
                                               onPressed: () {
                                                 setState(() {
-                                                  if (_visibleReplies.contains(c.id)) { _visibleReplies.remove(c.id); } 
-                                                  else { _visibleReplies.add(c.id); }
+                                                  if (_visibleReplies.contains(
+                                                    c.id,
+                                                  )) {
+                                                    _visibleReplies.remove(
+                                                      c.id,
+                                                    );
+                                                  } else {
+                                                    _visibleReplies.add(c.id);
+                                                  }
                                                 });
                                               },
-                                              child: Text(_visibleReplies.contains(c.id) ? "Hide Replies" : "Show Replies", style: const TextStyle(fontSize: 12)),
+                                              child: Text(
+                                                _visibleReplies.contains(c.id)
+                                                    ? "Hide Replies"
+                                                    : "Show Replies",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                ),
+                                              ),
                                             ),
                                         ],
                                       ),
                                       trailing: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          IconButton(icon: const Icon(Icons.reply, size: 18), onPressed: () => _showReplySheet(pId: c.id, rName: c.userName)),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.reply,
+                                              size: 18,
+                                            ),
+                                            onPressed: () => _showReplySheet(
+                                              pId: c.id,
+                                              rName: c.userName,
+                                            ),
+                                          ),
                                           if (isOwner) ...[
-                                            IconButton(icon: const Icon(Icons.edit, size: 18, color: Colors.orange), onPressed: () => _handleEditComment(c)),
-                                            IconButton(icon: const Icon(Icons.delete, size: 18, color: Colors.red), onPressed: () => _confirmDeleteComment(c.id)),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.edit,
+                                                size: 18,
+                                                color: Colors.orange,
+                                              ),
+                                              onPressed: () =>
+                                                  _handleEditComment(c),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete,
+                                                size: 18,
+                                                color: Colors.red,
+                                              ),
+                                              onPressed: () =>
+                                                  _confirmDeleteComment(
+                                                    c.id,
+                                                    currentIssue.id,
+                                                  ),
+                                            ),
                                           ],
                                         ],
                                       ),
@@ -485,10 +759,25 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 45)),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   onPressed: () => _showReplySheet(),
                   child: const Text("Add Comment"),
                 ),

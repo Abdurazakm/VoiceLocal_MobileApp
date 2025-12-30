@@ -17,6 +17,7 @@ class IssueService {
 
   // --- ISSUE METHODS ---
 
+  /// Fetches all issues ordered by newest first.
   Stream<List<Issue>> getIssues() {
     return _db
         .collection('Issues')
@@ -45,7 +46,7 @@ class IssueService {
     }
   }
 
-  // UPDATED: Toggle Vote Logic (One user, one vote)
+  // Toggle Vote Logic (One user, one vote)
   Future<void> voteForIssue(String issueId) async {
     try {
       final user = _auth.currentUser;
@@ -95,7 +96,8 @@ class IssueService {
       'street': street,
       'status': 'Open',
       'voteCount': 0,
-      'votedUids': [], // Initialize empty list
+      'commentCount': 0, // Initialize comment count
+      'votedUids': [],
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -122,6 +124,8 @@ class IssueService {
   }) async {
     final user = _auth.currentUser;
     if (user == null) return;
+
+    // 1. Add the comment document
     await _db.collection('Comments').add({
       'issueId': issueId,
       'userId': user.uid,
@@ -130,6 +134,11 @@ class IssueService {
       'parentId': parentId,
       'replyToName': replyToName,
       'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    // 2. Increment commentCount in the Issue document
+    await _db.collection('Issues').doc(issueId).update({
+      'commentCount': FieldValue.increment(1),
     });
   }
 
@@ -140,8 +149,14 @@ class IssueService {
     });
   }
 
-  Future<void> deleteComment(String id) async {
-    await _db.collection('Comments').doc(id).delete();
+  Future<void> deleteComment(String commentId, String issueId) async {
+    // 1. Delete the comment document
+    await _db.collection('Comments').doc(commentId).delete();
+
+    // 2. Decrement commentCount in the Issue document
+    await _db.collection('Issues').doc(issueId).update({
+      'commentCount': FieldValue.increment(-1),
+    });
   }
 
   Stream<List<Comment>> getComments(String issueId) {
@@ -156,7 +171,7 @@ class IssueService {
         );
   }
 
-  // Get total votes received by a user (sum of voteCount for all issues created by user)
+  // Get total votes received by a user
   Future<int> getTotalVotesReceived(String uid) async {
     try {
       final querySnapshot = await _db

@@ -10,20 +10,26 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   // Controllers to capture user input
-  final _nameController = TextEditingController(); // New: Name controller
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  
+  // NEW: Location Controllers
+  final _regionController = TextEditingController();
+  final _streetController = TextEditingController();
   
   final AuthService _auth = AuthService();
   bool _isLoading = false;
 
   void _handleRegister() async {
-    // Updated validation: Ensure name is not empty
+    // UPDATED: Validation includes Region and Street
     if (_nameController.text.trim().isEmpty || 
         _emailController.text.trim().isEmpty || 
-        _passwordController.text.trim().isEmpty) {
-      _showError("Please fill in all fields");
+        _passwordController.text.trim().isEmpty ||
+        _regionController.text.trim().isEmpty ||
+        _streetController.text.trim().isEmpty) {
+      _showError("Please fill in all fields including location");
       return;
     }
 
@@ -35,14 +41,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Calls updated register method with email, password, and name
+      // UPDATED: Passing region and street to the register method
       await _auth.register(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-        _nameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        name: _nameController.text.trim(),
+        region: _regionController.text.trim(),
+        street: _streetController.text.trim(),
       );
       
-      // If successful, go back to login or let AuthGate redirect
       if (mounted) Navigator.pop(context);
       
     } catch (e) {
@@ -64,6 +71,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _regionController.dispose(); // NEW
+    _streetController.dispose(); // NEW
     super.dispose();
   }
 
@@ -85,12 +94,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text("Register to report and vote on community issues"),
               const SizedBox(height: 30),
               
-              // NEW: Name Field
+              // Name Field
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: "Full Name",
-                  hintText: "Enter your full name",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person),
                 ),
@@ -98,6 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               
+              // Email Field
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
@@ -108,7 +117,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
+
+              // NEW: Region Field
+              TextField(
+                controller: _regionController,
+                decoration: const InputDecoration(
+                  labelText: "Region (e.g., Bole, Akaki)",
+                  hintText: "Enter your sub-city or region",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.map),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // NEW: Street Field
+              TextField(
+                controller: _streetController,
+                decoration: const InputDecoration(
+                  labelText: "Street / Neighborhood",
+                  hintText: "Enter your street name or area",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+              ),
+              const SizedBox(height: 16),
               
+              // Password Field
               TextField(
                 controller: _passwordController,
                 decoration: const InputDecoration(
@@ -120,6 +154,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               const SizedBox(height: 16),
               
+              // Confirm Password Field
               TextField(
                 controller: _confirmPasswordController,
                 decoration: const InputDecoration(

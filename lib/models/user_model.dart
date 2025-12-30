@@ -6,7 +6,9 @@ class UserModel {
   final String email;
   final String profilePic;
   final String bio;
-  final String role;
+  final String role; // "user" or "admin" [cite: 205]
+  final String region; // Added for location-based feed
+  final String street; // Added for location-based feed
   final DateTime createdAt;
 
   UserModel({
@@ -16,6 +18,8 @@ class UserModel {
     required this.profilePic,
     required this.bio,
     required this.role,
+    required this.region,
+    required this.street,
     required this.createdAt,
   });
 
@@ -28,7 +32,10 @@ class UserModel {
       profilePic: data['profilePic'] ?? '',
       bio: data['bio'] ?? '',
       role: data['role'] ?? 'user',
-      // Handles Firestore Timestamp conversion to Dart DateTime
+      // NEW: Retrieve region and street from Firestore
+      region: data['region'] ?? '',
+      street: data['street'] ?? '',
+      // Handles Firestore Timestamp conversion to Dart DateTime [cite: 213]
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -42,6 +49,8 @@ class UserModel {
       'profilePic': profilePic,
       'bio': bio,
       'role': role,
+      'region': region, // Added
+      'street': street, // Added
       'createdAt': createdAt,
     };
   }
