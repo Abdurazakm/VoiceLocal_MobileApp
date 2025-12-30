@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:voicelocal/services/auth_service.dart';
+import 'package:voicelocal/models/user_model.dart';
 import 'firebase_options.dart';
 
 // Import screens according to your defined folder structure
 import 'package:voicelocal/screens/auth/login_screen.dart';
 import 'package:voicelocal/screens/user/home_screen.dart';
-
-// COMMENTED OUT UNTIL FILE IS CREATED:
-// import 'package:voicelocal/screens/admin/admin_dashboard_screen.dart';
+import 'package:voicelocal/screens/admin/admin_dashboard.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +27,7 @@ class VoiceLocalApp extends StatelessWidget {
       title: 'VoiceLocal',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
       home: const AuthGate(),
@@ -46,43 +45,38 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // 1. If not logged in, show Login Screen
         if (!snapshot.hasData) {
           return const LoginScreen();
         }
 
-        return FutureBuilder<String>(
-          future: authService.getUserRole(snapshot.data!.uid),
-          builder: (context, roleSnapshot) {
-            if (roleSnapshot.connectionState == ConnectionState.waiting) {
+        // 2. Fetch the full UserModel to check roles and jurisdictions (FR-11, FR-13)
+        return FutureBuilder<UserModel?>(
+          future: authService.getUserModel(snapshot.data!.uid), 
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
-            // Route to Admin Dashboard if the role is 'admin'
-            if (roleSnapshot.data == 'admin') {
-              // Using a placeholder until the file exists to prevent errors
-              return const PlaceholderAdminDashboard();
+            final user = userSnapshot.data;
+
+            if (user == null) {
+              return const LoginScreen(); // Safety fallback
             }
 
-            // Default route for standard users
+            // 3. Routing Logic based on SRS Roles
+            // If the role is sector_admin or super_admin, go to Admin Dashboard
+            if (user.role == 'sector_admin' || user.role == 'super_admin') {
+              return AdminDashboard(currentUser: user);
+            }
+
+            // Default route for standard "user" role (Resident side)
             return const UserHome();
           },
         );
       },
-    );
-  }
-}
-
-// TEMPORARY PLACEHOLDER FOR ADMIN DASHBOARD
-class PlaceholderAdminDashboard extends StatelessWidget {
-  const PlaceholderAdminDashboard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Admin Dashboard")),
-      body: const Center(child: Text("Admin Dashboard coming soon!")),
     );
   }
 }

@@ -6,9 +6,19 @@ class UserModel {
   final String email;
   final String profilePic;
   final String bio;
-  final String role; // "user" or "admin" [cite: 205]
-  final String region; // Added for location-based feed
-  final String street; // Added for location-based feed
+  
+  // Roles: "user" (default), "sector_admin", "super_admin"
+  final String role; 
+
+  // Location for the community feed
+  final String region; 
+  final String street; 
+
+  // Administrative Jurisdictions (SRS FR-12, FR-13)
+  // These are used when role is "sector_admin" or "super_admin"
+  final String? assignedSector; // e.g., "Water", "Electric", "Roads"
+  final String? assignedRegion; // e.g., "Addis Ababa", "Oromia"
+
   final DateTime createdAt;
 
   UserModel({
@@ -20,6 +30,8 @@ class UserModel {
     required this.role,
     required this.region,
     required this.street,
+    this.assignedSector,
+    this.assignedRegion,
     required this.createdAt,
   });
 
@@ -31,11 +43,17 @@ class UserModel {
       email: data['email'] ?? '',
       profilePic: data['profilePic'] ?? '',
       bio: data['bio'] ?? '',
+      
+      // Kept "user" as default to match your current implementation
       role: data['role'] ?? 'user',
-      // NEW: Retrieve region and street from Firestore
+      
       region: data['region'] ?? '',
       street: data['street'] ?? '',
-      // Handles Firestore Timestamp conversion to Dart DateTime [cite: 213]
+      
+      // Admin-specific fields from Firestore
+      assignedSector: data['assignedSector'],
+      assignedRegion: data['assignedRegion'],
+      
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -49,8 +67,10 @@ class UserModel {
       'profilePic': profilePic,
       'bio': bio,
       'role': role,
-      'region': region, // Added
-      'street': street, // Added
+      'region': region,
+      'street': street,
+      'assignedSector': assignedSector,
+      'assignedRegion': assignedRegion,
       'createdAt': createdAt,
     };
   }
