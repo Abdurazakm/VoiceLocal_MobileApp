@@ -15,9 +15,23 @@ class IssueService {
     cache: false,
   );
 
-  // --- ISSUE METHODS ---
+  // --- PAGINATION METHOD (NEW) ---
 
-  /// Fetches all issues ordered by newest first.
+  /// Fetches issues in pages of 10 for better performance.
+  /// [lastDocument] is the pointer to where the previous page ended.
+  Future<QuerySnapshot> getIssuesPaged({DocumentSnapshot? lastDocument, int limit = 10}) async {
+    Query query = _db.collection('Issues')
+        .orderBy('createdAt', descending: true)
+        .limit(limit);
+
+    if (lastDocument != null) {
+      query = query.startAfterDocument(lastDocument);
+    }
+
+    return await query.get();
+  }
+
+  // --- LEGACY STREAM (Optional: Keep for small lists or admin views) ---
   Stream<List<Issue>> getIssues() {
     return _db
         .collection('Issues')
@@ -28,6 +42,8 @@ class IssueService {
               snapshot.docs.map((doc) => Issue.fromFirestore(doc)).toList(),
         );
   }
+
+  // --- CLOUDINARY METHODS ---
 
   Future<String?> uploadToCloudinary(File file, bool isVideo) async {
     try {
@@ -46,7 +62,8 @@ class IssueService {
     }
   }
 
-  // Toggle Vote Logic (One user, one vote)
+  // --- ISSUE METHODS ---
+
   Future<void> voteForIssue(String issueId) async {
     try {
       final user = _auth.currentUser;
@@ -59,13 +76,11 @@ class IssueService {
       List<dynamic> votedUids = doc.data()?['votedUids'] ?? [];
 
       if (votedUids.contains(user.uid)) {
-        // User already voted -> Downvote (Remove)
         await docRef.update({
           'voteCount': FieldValue.increment(-1),
           'votedUids': FieldValue.arrayRemove([user.uid]),
         });
       } else {
-        // User hasn't voted -> Upvote (Add)
         await docRef.update({
           'voteCount': FieldValue.increment(1),
           'votedUids': FieldValue.arrayUnion([user.uid]),
@@ -96,7 +111,7 @@ class IssueService {
       'street': street,
       'status': 'Open',
       'voteCount': 0,
-      'commentCount': 0, // Initialize comment count
+      'commentCount': 0,
       'votedUids': [],
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
@@ -125,7 +140,6 @@ class IssueService {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // 1. Add the comment document
     await _db.collection('Comments').add({
       'issueId': issueId,
       'userId': user.uid,
@@ -136,7 +150,6 @@ class IssueService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // 2. Increment commentCount in the Issue document
     await _db.collection('Issues').doc(issueId).update({
       'commentCount': FieldValue.increment(1),
     });
@@ -150,10 +163,7 @@ class IssueService {
   }
 
   Future<void> deleteComment(String commentId, String issueId) async {
-    // 1. Delete the comment document
     await _db.collection('Comments').doc(commentId).delete();
-
-    // 2. Decrement commentCount in the Issue document
     await _db.collection('Issues').doc(issueId).update({
       'commentCount': FieldValue.increment(-1),
     });
@@ -171,7 +181,8 @@ class IssueService {
         );
   }
 
-  // Get total votes received by a user
+  // --- STATS METHODS ---
+
   Future<int> getTotalVotesReceived(String uid) async {
     try {
       final querySnapshot = await _db
@@ -185,22 +196,18 @@ class IssueService {
       }
       return totalVotes;
     } catch (e) {
-      print("Error getting total votes: $e");
       return 0;
     }
   }
 
-  // Get total comments made by a user
   Future<int> getTotalCommentsMade(String uid) async {
     try {
       final querySnapshot = await _db
           .collection('Comments')
           .where('userId', isEqualTo: uid)
           .get();
-
       return querySnapshot.docs.length;
     } catch (e) {
-      print("Error getting total comments: $e");
       return 0;
     }
   }
