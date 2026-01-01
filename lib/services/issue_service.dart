@@ -15,7 +15,7 @@ class IssueService {
     cache: false,
   );
 
-  // --- PAGINATION METHOD (NEW) ---
+  // --- PAGINATION METHODS ---
 
   /// Fetches issues in pages of 10 for better performance.
   /// [lastDocument] is the pointer to where the previous page ended.
@@ -31,7 +31,7 @@ class IssueService {
     return await query.get();
   }
 
-  // --- LEGACY STREAM (Optional: Keep for small lists or admin views) ---
+  // --- LEGACY STREAM ---
   Stream<List<Issue>> getIssues() {
     return _db
         .collection('Issues')
@@ -64,30 +64,35 @@ class IssueService {
 
   // --- ISSUE METHODS ---
 
+  /// Uses a Transaction to handle voting to prevent race conditions.
   Future<void> voteForIssue(String issueId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final docRef = _db.collection('Issues').doc(issueId);
+
     try {
-      final user = _auth.currentUser;
-      if (user == null) return;
+      await _db.runTransaction((transaction) async {
+        DocumentSnapshot snapshot = await transaction.get(docRef);
 
-      final docRef = _db.collection('Issues').doc(issueId);
-      final doc = await docRef.get();
-      if (!doc.exists) return;
+        if (!snapshot.exists) return;
 
-      List<dynamic> votedUids = doc.data()?['votedUids'] ?? [];
+        List<dynamic> votedUids = List.from(snapshot.get('votedUids') ?? []);
+        bool hasVoted = votedUids.contains(user.uid);
 
-      if (votedUids.contains(user.uid)) {
-        await docRef.update({
-          'voteCount': FieldValue.increment(-1),
-          'votedUids': FieldValue.arrayRemove([user.uid]),
-        });
-      } else {
-        await docRef.update({
-          'voteCount': FieldValue.increment(1),
-          'votedUids': FieldValue.arrayUnion([user.uid]),
-        });
-      }
+        if (hasVoted) {
+          transaction.update(docRef, {
+            'voteCount': FieldValue.increment(-1),
+            'votedUids': FieldValue.arrayRemove([user.uid]),
+          });
+        } else {
+          transaction.update(docRef, {
+            'voteCount': FieldValue.increment(1),
+            'votedUids': FieldValue.arrayUnion([user.uid]),
+          });
+        }
+      });
     } catch (e) {
-      print("Error voting: $e");
     }
   }
 
@@ -183,31 +188,25 @@ class IssueService {
 
   // --- STATS METHODS ---
 
+  /// Optimized using Cloud Firestore Aggregation Queries.
   Future<int> getTotalVotesReceived(String uid) async {
     try {
-      final querySnapshot = await _db
-          .collection('Issues')
-          .where('createdBy', isEqualTo: uid)
-          .get();
-
-      int totalVotes = 0;
-      for (var doc in querySnapshot.docs) {
-        totalVotes += (doc.data()['voteCount'] ?? 0) as int;
-      }
-      return totalVotes;
+      final query = _db.collection('Issues').where('createdBy', isEqualTo: uid);
+      final aggregateSnapshot = await query.aggregate(sum('voteCount')).get();
+      return aggregateSnapshot.getSum('voteCount')?.toInt() ?? 0;
     } catch (e) {
+      print("Error fetching total votes: $e");
       return 0;
     }
   }
 
   Future<int> getTotalCommentsMade(String uid) async {
     try {
-      final querySnapshot = await _db
-          .collection('Comments')
-          .where('userId', isEqualTo: uid)
-          .get();
-      return querySnapshot.docs.length;
+      final query = _db.collection('Comments').where('userId', isEqualTo: uid);
+      final countSnapshot = await query.count().get();
+      return countSnapshot.count ?? 0;
     } catch (e) {
+      print("Error fetching comment count: $e");
       return 0;
     }
   }

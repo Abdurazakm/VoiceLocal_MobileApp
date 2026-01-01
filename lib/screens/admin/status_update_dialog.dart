@@ -1,5 +1,3 @@
-// File path: lib/screens/admin/status_update_dialog.dart
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -8,9 +6,9 @@ class StatusUpdateDialog extends StatefulWidget {
   final String currentStatus;
 
   const StatusUpdateDialog({
-    super.key,
-    required this.issueId,
-    required this.currentStatus,
+    super.key, 
+    required this.issueId, 
+    required this.currentStatus
   });
 
   @override
@@ -19,9 +17,15 @@ class StatusUpdateDialog extends StatefulWidget {
 
 class _StatusUpdateDialogState extends State<StatusUpdateDialog> {
   late String _selectedStatus;
-  
-  // Status options defined in SRS Section 8.2 
-  final List<String> _statusOptions = ["Open", "In Review", "Resolved"];
+  bool _isUpdating = false;
+
+  final List<String> _statusOptions = [
+    'Pending',
+    'In Review',
+    'In Progress',
+    'Resolved',
+    'Closed'
+  ];
 
   @override
   void initState() {
@@ -30,20 +34,19 @@ class _StatusUpdateDialogState extends State<StatusUpdateDialog> {
   }
 
   Future<void> _updateStatus() async {
+    setState(() => _isUpdating = true);
     try {
       await FirebaseFirestore.instance
           .collection('Issues')
           .doc(widget.issueId)
-          .update({'status': _selectedStatus}); // Implementation of FR-9 [cite: 96]
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Status updated to $_selectedStatus")),
-        );
-      }
+          .update({
+        'status': _selectedStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) Navigator.pop(context);
     } catch (e) {
-      debugPrint("Error updating status: $e");
+      debugPrint("Update failed: $e");
+      setState(() => _isUpdating = false);
     }
   }
 
@@ -58,9 +61,7 @@ class _StatusUpdateDialogState extends State<StatusUpdateDialog> {
             title: Text(status),
             value: status,
             groupValue: _selectedStatus,
-            onChanged: (value) {
-              setState(() => _selectedStatus = value!);
-            },
+            onChanged: (val) => setState(() => _selectedStatus = val!),
           );
         }).toList(),
       ),
@@ -70,8 +71,14 @@ class _StatusUpdateDialogState extends State<StatusUpdateDialog> {
           child: const Text("Cancel"),
         ),
         ElevatedButton(
-          onPressed: _updateStatus,
-          child: const Text("Update"),
+          onPressed: _isUpdating ? null : _updateStatus,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF3F51B5),
+            foregroundColor: Colors.white,
+          ),
+          child: _isUpdating 
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Text("Update"),
         ),
       ],
     );

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shimmer/shimmer.dart'; // Ensure you added shimmer to pubspec.yaml
-import '../../services/issue_service.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../models/issue_model.dart';
 import 'add_issue_screen.dart';
 import 'issue_detail_screen.dart';
 import 'profile/ProfileScreen.dart';
+import '../admin/status_update_dialog.dart';
 
 class UserHome extends StatefulWidget {
   const UserHome({super.key});
@@ -16,12 +16,11 @@ class UserHome extends StatefulWidget {
 }
 
 class _UserHomeState extends State<UserHome> {
-  final IssueService _issueService = IssueService();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final Color primaryColor = const Color(0xFF3F51B5);
 
-  List<Issue> _issues = [];
+  final List<Issue> _issues = [];
   DocumentSnapshot? _lastDocument;
   bool _isLoading = false;
   bool _hasMore = true;
@@ -29,6 +28,8 @@ class _UserHomeState extends State<UserHome> {
   
   String userReg = "";
   String userStr = "";
+  String userRole = "user"; 
+  String? adminSector;
 
   @override
   void initState() {
@@ -48,16 +49,27 @@ class _UserHomeState extends State<UserHome> {
   Future<void> _initializeUserAndData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      final userDoc = await FirebaseFirestore.instance.collection('Users').doc(uid).get();
-      if (userDoc.exists) {
-        final data = userDoc.data();
-        setState(() {
-          userReg = (data?['region'] ?? '').toString().toLowerCase();
-          userStr = (data?['street'] ?? '').toString().toLowerCase();
-        });
+      try {
+        final userDoc = await FirebaseFirestore.instance.collection('Users').doc(uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data();
+          setState(() {
+            userReg = (data?['region'] ?? '').toString().trim();
+            userStr = (data?['street'] ?? '').toString().trim();
+            userRole = data?['role'] ?? 'user';
+            adminSector = data?['assignedSector'];
+          });
+        }
+      } catch (e) {
+        debugPrint("Error fetching user data: $e");
       }
     }
     _fetchIssues(isRefresh: true);
+  }
+
+  String _toTitleCase(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).toLowerCase();
   }
 
   Future<void> _fetchIssues({bool isRefresh = false}) async {
@@ -71,15 +83,24 @@ class _UserHomeState extends State<UserHome> {
       _hasMore = true;
     }
 
-    Query query = FirebaseFirestore.instance.collection('Issues')
-        .orderBy('createdAt', descending: true)
-        .limit(10);
-
-    if (_lastDocument != null) {
-      query = query.startAfterDocument(_lastDocument!);
-    }
-
     try {
+      Query query = FirebaseFirestore.instance.collection('Issues');
+
+      if (userRole == 'sector_admin' && adminSector != null) {
+        String formattedRegion = _toTitleCase(userReg);
+        String formattedCategory = _toTitleCase(adminSector!);
+        
+        query = query
+            .where('category', isEqualTo: formattedCategory)
+            .where('region', isEqualTo: formattedRegion);
+      }
+
+      query = query.orderBy('createdAt', descending: true).limit(10);
+
+      if (_lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
+
       final snapshot = await query.get();
 
       if (snapshot.docs.length < 10) _hasMore = false;
@@ -93,21 +114,27 @@ class _UserHomeState extends State<UserHome> {
 
         setState(() {
           _issues.addAll(newIssues);
-          _applySorting();
+          if (userRole == 'user') {
+            _applySorting();
+          }
         });
       }
     } catch (e) {
-      debugPrint("Error fetching issues: $e");
+      debugPrint("!!! FIRESTORE QUERY ERROR: $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
   }
 
   void _applySorting() {
     _issues.sort((a, b) {
       int getP(Issue i) {
-        if (i.region.toLowerCase() == userReg && i.street.toLowerCase() == userStr) return 0;
-        if (i.region.toLowerCase() == userReg) return 1;
+        String r = i.region.toLowerCase().trim();
+        String s = i.street.toLowerCase().trim();
+        String uR = userReg.toLowerCase().trim();
+        String uS = userStr.toLowerCase().trim();
+        if (r == uR && s == uS) return 0;
+        if (r == uR) return 1;
         return 2;
       }
       int res = getP(a).compareTo(getP(b));
@@ -118,10 +145,12 @@ class _UserHomeState extends State<UserHome> {
   @override
   Widget build(BuildContext context) {
     final String currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final bool isAdmin = userRole == 'sector_admin' || userRole == 'super_admin';
     
     final filteredDisplayList = _issues.where((issue) {
-      return issue.title.toLowerCase().contains(_searchQuery) || 
-             issue.category.toLowerCase().contains(_searchQuery);
+      final query = _searchQuery.toLowerCase();
+      return issue.title.toLowerCase().contains(query) || 
+             issue.category.toLowerCase().contains(query);
     }).toList();
 
     return Scaffold(
@@ -132,7 +161,7 @@ class _UserHomeState extends State<UserHome> {
           controller: _scrollController,
           slivers: [
             SliverAppBar(
-              expandedHeight: 120.0,
+              expandedHeight: 140.0, // Increased height for larger logo
               floating: true,
               pinned: true,
               elevation: 0,
@@ -140,45 +169,37 @@ class _UserHomeState extends State<UserHome> {
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    // Increased Logo Size
                     Image.asset(
                       'assets/logo.png', 
-                      height: 24, 
-                      errorBuilder: (c, e, s) => Icon(Icons.campaign, color: primaryColor),
+                      height: 40, // Increased height
+                      width: 40,  // Added width for visibility
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) => Icon(
+                        isAdmin ? Icons.admin_panel_settings : Icons.campaign, 
+                        color: primaryColor, 
+                        size: 32 // Increased fallback size
+                      ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 12),
                     Text(
-                      "VoiceLocal",
-                      style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 20),
+                      isAdmin ? "Admin Console" : "VoiceLocal",
+                      style: TextStyle(
+                        color: primaryColor, 
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 22 // Increased title font size
+                      ),
                     ),
                   ],
                 ),
               ),
               actions: [
-                StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance.collection('Users').doc(currentUid).snapshots(),
-                  builder: (context, userSnapshot) {
-                    String? profileUrl;
-                    if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                      final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                      profileUrl = userData?['profilePic'];
-                    }
-
-                    return IconButton(
-                      icon: CircleAvatar(
-                        backgroundColor: primaryColor.withOpacity(0.1),
-                        radius: 18,
-                        backgroundImage: (profileUrl != null && profileUrl.isNotEmpty)
-                            ? NetworkImage(profileUrl) : null,
-                        child: (profileUrl == null || profileUrl.isEmpty)
-                            ? Icon(Icons.person_outline, color: primaryColor, size: 20) : null,
-                      ),
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
-                    );
-                  },
-                ),
+                _buildProfileButton(currentUid),
                 IconButton(
-                  icon: const Icon(Icons.logout_rounded, color: Colors.grey),
+                  icon: const Icon(Icons.logout_rounded, color: Colors.grey, size: 28),
                   onPressed: () => FirebaseAuth.instance.signOut(),
                 ),
                 const SizedBox(width: 8),
@@ -192,12 +213,19 @@ class _UserHomeState extends State<UserHome> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Hello community!", style: TextStyle(color: Colors.grey, fontSize: 16)),
-                    const Text("Local Issues", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text(isAdmin 
+                      ? (userRole == 'super_admin' ? "All Active Reports" : "Jurisdiction: $adminSector") 
+                      : "Hello community!", 
+                      style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                    Text(isAdmin ? "Management Hub" : "Local Issues", 
+                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    
+                    if (isAdmin) _buildAdminStats(),
+
                     const SizedBox(height: 15),
                     TextField(
                       controller: _searchController,
-                      onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                      onChanged: (value) => setState(() => _searchQuery = value),
                       decoration: InputDecoration(
                         hintText: "Search issues or categories...",
                         prefixIcon: Icon(Icons.search_rounded, color: primaryColor),
@@ -212,40 +240,26 @@ class _UserHomeState extends State<UserHome> {
               ),
             ),
 
-            _issues.isEmpty && !_isLoading 
+            filteredDisplayList.isEmpty && !_isLoading 
             ? SliverFillRemaining(child: _buildEmptyState())
             : SliverPadding(
                 padding: const EdgeInsets.only(bottom: 100),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      // Initial Loading State
-                      if (_issues.isEmpty && _isLoading) {
-                        return _buildIssueShimmer();
-                      }
-
-                      // Paginated Loading State
                       if (index == filteredDisplayList.length) {
-                        return _hasMore 
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: _buildIssueShimmer(),
-                            )
-                          : const Padding(
-                              padding: EdgeInsets.all(20), 
-                              child: Center(child: Text("No more issues found", style: TextStyle(color: Colors.grey)))
-                            );
+                        return _hasMore ? _buildIssueShimmer() : _buildEndOfList();
                       }
-                      return _buildIssueCard(filteredDisplayList[index], userReg, userStr);
+                      return _buildIssueCard(filteredDisplayList[index], userReg, userStr, isAdmin);
                     },
-                    childCount: (_issues.isEmpty && _isLoading) ? 6 : filteredDisplayList.length + 1,
+                    childCount: filteredDisplayList.length + 1,
                   ),
                 ),
               ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: isAdmin ? null : FloatingActionButton.extended(
         backgroundColor: primaryColor,
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddIssueScreen())),
         icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
@@ -254,56 +268,116 @@ class _UserHomeState extends State<UserHome> {
     );
   }
 
-  Widget _buildIssueShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-        child: Row(
-          children: [
-            Container(width: 85, height: 85, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15))),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(width: 60, height: 12, color: Colors.white),
-                  const SizedBox(height: 8),
-                  Container(width: double.infinity, height: 16, color: Colors.white),
-                  const SizedBox(height: 4),
-                  Container(width: 100, height: 12, color: Colors.white),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Container(width: 30, height: 12, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Container(width: 30, height: 12, color: Colors.white),
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget _buildProfileButton(String uid) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('Users').doc(uid).snapshots(),
+      builder: (context, snapshot) {
+        String? url = (snapshot.data?.data() as Map<String, dynamic>?)?['profilePic'];
+        return IconButton(
+          icon: CircleAvatar(
+            backgroundColor: primaryColor.withOpacity(0.1),
+            radius: 20,
+            backgroundImage: (url != null && url.isNotEmpty) ? NetworkImage(url) : null,
+            child: (url == null || url.isEmpty) ? Icon(Icons.person, color: primaryColor, size: 24) : null,
+          ),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
+        );
+      },
     );
   }
 
-  Widget _buildIssueCard(Issue issue, String uReg, String uStr) {
-    bool isMyStreet = issue.region.toLowerCase() == uReg && issue.street.toLowerCase() == uStr;
+  Widget _buildAdminStats() {
+    Query query = FirebaseFirestore.instance.collection('Issues');
+    if (userRole == 'sector_admin' && adminSector != null) {
+      query = query
+        .where('category', isEqualTo: _toTitleCase(adminSector!))
+        .where('region', isEqualTo: _toTitleCase(userReg));
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox(height: 10);
+        int total = snapshot.data!.docs.length;
+        int resolved = snapshot.data!.docs.where((doc) => doc['status'] == 'Resolved').length;
+        int pending = total - resolved;
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 15),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: primaryColor.withOpacity(0.05), borderRadius: BorderRadius.circular(15)),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _statItem("Total", total.toString()),
+              _statItem("Pending", pending.toString()),
+              _statItem("Resolved", resolved.toString()),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor)),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildIssueCard(Issue issue, String uReg, String uStr, bool isAdmin) {
+    bool isMyStreet = issue.region.toLowerCase().trim() == uReg.toLowerCase().trim() && 
+                      issue.street.toLowerCase().trim() == uStr.toLowerCase().trim();
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 8))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue))),
+        onTap: () {
+          if (isAdmin) {
+            showModalBottomSheet(
+              context: context,
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+              builder: (context) => SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 8),
+                    Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                    ListTile(
+                      leading: const Icon(Icons.visibility_outlined, color: Colors.blue),
+                      title: const Text("View Report Details"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue)));
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.edit_road_outlined, color: Colors.orange),
+                      title: const Text("Update Resolution Status"),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showDialog(
+                          context: context, 
+                          builder: (context) => StatusUpdateDialog(issueId: issue.id, currentStatus: issue.status)
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          } else {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue)));
+          }
+        },
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -325,14 +399,36 @@ class _UserHomeState extends State<UserHome> {
                     Text(issue.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16), maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text("${issue.region}, ${issue.street}", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                     const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        _miniStat(Icons.thumb_up_alt_rounded, "${issue.voteCount}"),
-                        const SizedBox(width: 12),
-                        _miniStat(Icons.mode_comment_rounded, "${issue.commentCount}"),
-                        const Spacer(),
-                        Text(issue.status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: issue.status == 'Resolved' ? Colors.green : Colors.orange)),
-                      ],
+                    // StreamBuilder for real-time vote/comment counts
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseFirestore.instance.collection('Issues').doc(issue.id).snapshots(),
+                      builder: (context, snapshot) {
+                        int votes = issue.voteCount;
+                        int comments = issue.commentCount;
+
+                        if (snapshot.hasData && snapshot.data!.exists) {
+                          final data = snapshot.data!.data() as Map<String, dynamic>;
+                          votes = data['voteCount'] ?? 0;
+                          comments = data['commentCount'] ?? 0;
+                        }
+
+                        return Row(
+                          children: [
+                            _miniStat(Icons.thumb_up_alt_rounded, "$votes"),
+                            const SizedBox(width: 12),
+                            _miniStat(Icons.comment_rounded, "$comments"),
+                            const Spacer(),
+                            Text(
+                              issue.status, 
+                              style: TextStyle(
+                                fontSize: 11, 
+                                fontWeight: FontWeight.bold, 
+                                color: issue.status == 'Resolved' ? Colors.green : Colors.orange
+                              )
+                            ),
+                          ],
+                        );
+                      }
                     )
                   ],
                 ),
@@ -344,57 +440,31 @@ class _UserHomeState extends State<UserHome> {
     );
   }
 
-  Widget _miniStat(IconData icon, String count) {
-    return Row(children: [
-      Icon(icon, size: 14, color: primaryColor.withOpacity(0.5)),
-      const SizedBox(width: 4),
-      Text(count, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-    ]);
-  }
-
-  Widget _badge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
-    );
-  }
-
-  Widget _statusDot(String status) {
-    return Container(
-      width: 8, height: 8,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: status == 'Resolved' ? Colors.green : Colors.orange,
-        boxShadow: [BoxShadow(color: (status == 'Resolved' ? Colors.green : Colors.orange).withOpacity(0.4), blurRadius: 4)],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.map_outlined, size: 100, color: primaryColor.withOpacity(0.1)),
-          const SizedBox(height: 16),
-          const Text("Everything looks clear!", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const Text("No issues reported here yet.", style: TextStyle(color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLeadingMedia(Issue issue) {
     return Container(
-      width: 85, height: 85,
-      decoration: BoxDecoration(color: const Color(0xFFF1F4FF), borderRadius: BorderRadius.circular(15)),
+      width: 80, height: 80,
+      decoration: BoxDecoration(color: const Color(0xFFF1F4FF), borderRadius: BorderRadius.circular(12)),
       child: issue.attachmentUrl != null && issue.attachmentUrl!.isNotEmpty
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: Image.network(issue.attachmentUrl!, fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: primaryColor.withOpacity(0.2))),
-            )
-          : Icon(Icons.image_not_supported_outlined, color: primaryColor.withOpacity(0.2)),
+          ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(issue.attachmentUrl!, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image)))
+          : Icon(Icons.image_not_supported, color: primaryColor.withOpacity(0.2)),
+    );
+  }
+
+  Widget _miniStat(IconData icon, String count) => Row(children: [Icon(icon, size: 16, color: Colors.grey[600]), const SizedBox(width: 4), Text(count, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))]);
+  
+  Widget _badge(String label, Color color) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)), child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)));
+
+  Widget _statusDot(String status) => Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: status == 'Resolved' ? Colors.green : Colors.orange));
+
+  Widget _buildEmptyState() => const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.map_outlined, size: 80, color: Colors.grey), Text("No issues found", style: TextStyle(fontWeight: FontWeight.bold))]));
+
+  Widget _buildEndOfList() => const Padding(padding: EdgeInsets.all(30), child: Center(child: Text("You've reached the end", style: TextStyle(color: Colors.grey, fontSize: 12))));
+
+  Widget _buildIssueShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(margin: const EdgeInsets.all(16), height: 100, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
     );
   }
 
