@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Added for manual notification write
 import '../../services/issue_service.dart';
 
 class AddIssueScreen extends StatefulWidget {
@@ -67,7 +68,8 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
         fileUrl = await _issueService.uploadToCloudinary(_selectedFile!, _isVideo);
       }
 
-      await _issueService.createIssue(
+      // 1. Create the Issue and get the new ID back
+      final String issueId = await _issueService.createIssue(
         _titleController.text,
         _descController.text,
         fileUrl,
@@ -75,6 +77,18 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
         region: _selectedRegion!,
         street: _streetController.text.trim(),
       );
+
+      // 2. Create the Admin Notification manually (Replaces Cloud Functions)
+      await FirebaseFirestore.instance.collection('Notifications').add({
+        'title': 'New $_selectedCategory Issue',
+        'body': '${_titleController.text} at ${_streetController.text.trim()}',
+        'sector': _selectedCategory,
+        'region': _selectedRegion,
+        'issueId': issueId,
+        'type': 'new_issue',
+        'timestamp': FieldValue.serverTimestamp(),
+        'readBy': [], // Ensures it appears as unread for admins
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

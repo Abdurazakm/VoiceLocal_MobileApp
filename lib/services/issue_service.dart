@@ -96,7 +96,8 @@ class IssueService {
     }
   }
 
-  Future<void> createIssue(
+  /// UPDATED: Returns the document ID to trigger notifications from the UI.
+  Future<String> createIssue(
     String title,
     String description,
     String? fileUrl, {
@@ -105,9 +106,9 @@ class IssueService {
     required String street,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) throw Exception("User not authenticated");
 
-    await _db.collection('Issues').add({
+    DocumentReference docRef = await _db.collection('Issues').add({
       'title': title,
       'description': description,
       'attachmentUrl': fileUrl,
@@ -121,6 +122,8 @@ class IssueService {
       'createdBy': user.uid,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    
+    return docRef.id;
   }
 
   Future<void> updateIssue(String id, String title, String desc) async {
