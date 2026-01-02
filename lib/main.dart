@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:voicelocal/services/auth_service.dart';
 import 'package:voicelocal/models/user_model.dart';
 import 'firebase_options.dart';
 
-// Import screens according to your defined folder structure
+// Import screens
 import 'package:voicelocal/screens/auth/login_screen.dart';
 import 'package:voicelocal/screens/user/home_screen.dart';
 import 'package:voicelocal/screens/admin/admin_dashboard.dart';
@@ -29,7 +30,9 @@ class VoiceLocalApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
+        textTheme: GoogleFonts.robotoTextTheme(Theme.of(context).textTheme),
       ),
+      // AuthGate handles all navigation based on login state
       home: const AuthGate(),
     );
   }
@@ -45,15 +48,23 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // 1. If not logged in, show Login Screen
+        // 1. Handle connection errors
+        if (snapshot.hasError) {
+          return const Scaffold(
+            body: Center(child: Text("Authentication Error. Please restart the app.")),
+          );
+        }
+
+        // 2. If user is NOT logged in, show Login Screen
         if (!snapshot.hasData) {
           return const LoginScreen();
         }
 
-        // 2. Fetch the full UserModel to check roles and jurisdictions (FR-11, FR-13)
+        // 3. If user IS logged in, fetch their role from Firestore
         return FutureBuilder<UserModel?>(
-          future: authService.getUserModel(snapshot.data!.uid), 
+          future: authService.getUserModel(snapshot.data!.uid),
           builder: (context, userSnapshot) {
+            // Show loading while fetching user role
             if (userSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
@@ -62,17 +73,18 @@ class AuthGate extends StatelessWidget {
 
             final user = userSnapshot.data;
 
+            // Safety check: if Firebase Auth is active but user document is missing
             if (user == null) {
-              return const LoginScreen(); // Safety fallback
+              FirebaseAuth.instance.signOut();
+              return const LoginScreen();
             }
 
-            // 3. Routing Logic based on SRS Roles
-            // If the role is sector_admin or super_admin, go to Admin Dashboard
+            // 4. Role-based Routing Logic
             if (user.role == 'sector_admin' || user.role == 'super_admin') {
               return AdminDashboard(currentUser: user);
             }
 
-            // Default route for standard "user" role (Resident side)
+            // Default for regular users
             return const UserHome();
           },
         );

@@ -12,6 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   scrollable_positioned_list: ^0.3.8
   shimmer: ^3.0.0
+  font_awesome_flutter: ^10.7.0
 
   # Firebase packages (updated versions)
   firebase_core: ^4.3.0
@@ -25,6 +26,8 @@ dependencies:
   cloudinary_public: ^0.23.1
   http: ^1.2.1
   intl: ^0.20.2
+  google_sign_in: ^7.2.0
+  google_fonts: ^6.3.3
 
 dev_dependencies:
   flutter_test:

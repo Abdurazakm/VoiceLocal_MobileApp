@@ -20,7 +20,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _bioController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  // NEW: Location Controllers
   final TextEditingController _regionController = TextEditingController();
   final TextEditingController _streetController = TextEditingController();
 
@@ -38,6 +37,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
       widget.targetUserId == null ||
       widget.targetUserId == FirebaseAuth.instance.currentUser?.uid;
 
+  // --- LOGOUT LOGIC ---
+  Future<void> _handleLogout() async {
+  final bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      title: const Text("Sign Out"),
+      content: const Text("Are you sure you want to log out?"),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("CANCEL")),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text("SIGN OUT", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm == true) {
+    // 1. Close the dialog
+    // No need to do anything else. When the line below finishes, 
+    // the StreamBuilder in AuthGate (main.dart) will automatically 
+    // kick the user back to the LoginScreen.
+    await _auth.logout(); 
+  }
+}
+  // --- UPDATE METHODS ---
   Future<void> _updateProfilePicture(String uid) async {
     if (!isMe) return;
     final picker = ImagePicker();
@@ -50,7 +76,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         CloudinaryFile.fromFile(pickedFile.path, resourceType: CloudinaryResourceType.Image, folder: 'voicelocal_profiles'),
       );
       await FirebaseFirestore.instance.collection('Users').doc(uid).update({'profilePic': response.secureUrl});
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload failed: $e")));
     } finally {
@@ -58,7 +83,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- RESTORED: Original Bio Update ---
   Future<void> _updateBio(String uid, String newBio) async {
     try {
       await _auth.updateUserProfile(uid, bio: newBio);
@@ -71,7 +95,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- RESTORED: Original Name Update ---
   Future<void> _updateName(String uid, String newName) async {
     try {
       await _auth.updateUserProfile(uid, name: newName);
@@ -84,7 +107,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- NEW: Location Update ---
   Future<void> _updateLocation(String uid, String region, String street) async {
     try {
       await _auth.updateUserProfile(uid, region: region, street: street);
@@ -173,12 +195,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // --- BUILDER ---
   @override
   Widget build(BuildContext context) {
     final String effectiveUid = widget.targetUserId ?? FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
-      appBar: AppBar(title: Text(isMe ? "My Profile" : "User Profile"), centerTitle: true),
+      backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        title: Text(isMe ? "My Account" : "Profile", style: const TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('Users').doc(effectiveUid).snapshots(),
         builder: (context, snapshot) {
@@ -188,18 +218,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return SingleChildScrollView(
             child: Column(
               children: [
-                const SizedBox(height: 20),
-                _buildHeader(user),
-                const Divider(height: 40),
-                _buildSectionHeader("About Me", isMe ? () => _showEditBioSheet(effectiveUid, user.bio) : null),
-                _buildBioBox(user.bio),
-                const Divider(height: 40),
-                _buildSectionHeader("Contributions", null),
+                _buildHeaderCard(user),
+                _buildSectionLabel("PERSONAL INFO"),
+                _buildInfoCard(user),
+                _buildSectionLabel("STATS"),
                 _buildContributions(effectiveUid),
-                const Divider(height: 40),
-                _buildSectionHeader(isMe ? "My Reports" : "${user.name}'s Reports", null),
+                _buildSectionLabel(isMe ? "MY ACTIVITY" : "RECENT REPORTS"),
                 _buildUserIssues(effectiveUid),
-                if (isMe) ...[const SizedBox(height: 30), _buildLogoutButton()],
+                if (isMe) ...[
+                  const SizedBox(height: 30),
+                  _buildLogoutButton(),
+                ],
                 const SizedBox(height: 40),
               ],
             ),
@@ -209,94 +238,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildHeader(UserModel user) {
-    return Column(
-      children: [
-        Stack(
-          children: [
-            CircleAvatar(
-              radius: 55,
-              backgroundImage: user.profilePic.isNotEmpty ? NetworkImage(user.profilePic) : null,
-              child: user.profilePic.isEmpty && !_isUploading ? const Icon(Icons.person, size: 55) : (_isUploading ? const CircularProgressIndicator() : null),
-            ),
-            if (isMe)
-              Positioned(bottom: 0, right: 0, child: GestureDetector(
-                onTap: () => _updateProfilePicture(user.uid),
-                child: const CircleAvatar(radius: 18, backgroundColor: Colors.blue, child: Icon(Icons.camera_alt, color: Colors.white, size: 18)),
-              )),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(user.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            if (isMe) IconButton(icon: const Icon(Icons.edit, size: 16), onPressed: () => _showEditNameSheet(user.uid, user.name)),
-          ],
-        ),
-        Text(user.email, style: const TextStyle(color: Colors.grey)),
-        const SizedBox(height: 8),
-        // Location Badge
-        GestureDetector(
-          onTap: isMe ? () => _showEditLocationSheet(user.uid, user.region, user.street) : null,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.location_on, size: 14, color: Colors.blue),
-                const SizedBox(width: 4),
-                Text("${user.region}, ${user.street}", style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.w500)),
-                if (isMe) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.edit, size: 12, color: Colors.blue)),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Rest of your helper methods (_buildSectionHeader, _buildBioBox, _buildContributions, etc.) stay exactly the same...
-  Widget _buildSectionHeader(String title, VoidCallback? onEdit) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildHeaderCard(UserModel user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 25),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+      ),
+      child: Column(
         children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          if (onEdit != null) IconButton(icon: const Icon(Icons.edit, size: 20), onPressed: onEdit),
+          Stack(
+            children: [
+              Container(
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.blue.shade100, width: 3)),
+                child: CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.grey[200],
+                  backgroundImage: user.profilePic.isNotEmpty ? NetworkImage(user.profilePic) : null,
+                  child: user.profilePic.isEmpty && !_isUploading ? const Icon(Icons.person, size: 50, color: Colors.grey) : (_isUploading ? const CircularProgressIndicator() : null),
+                ),
+              ),
+              if (isMe)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: GestureDetector(
+                    onTap: () => _updateProfilePicture(user.uid),
+                    child: const CircleAvatar(radius: 16, backgroundColor: Colors.blue, child: Icon(Icons.camera_alt, color: Colors.white, size: 16)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(user.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              if (isMe) IconButton(icon: const Icon(Icons.edit, size: 16, color: Colors.blue), onPressed: () => _showEditNameSheet(user.uid, user.name)),
+            ],
+          ),
+          Text(user.email, style: TextStyle(color: Colors.grey[600])),
         ],
       ),
     );
   }
 
-  Widget _buildBioBox(String bio) {
+  Widget _buildInfoCard(UserModel user) {
     return Container(
-      width: double.infinity, margin: const EdgeInsets.symmetric(horizontal: 20), padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(10)),
-      child: Text(bio.isEmpty ? (isMe ? "Add a bio to introduce yourself!" : "No bio available.") : bio),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: Column(
+        children: [
+          _buildListTile(
+            icon: Icons.notes_rounded,
+            title: "About",
+            subtitle: user.bio.isEmpty ? "No bio added yet" : user.bio,
+            onTap: isMe ? () => _showEditBioSheet(user.uid, user.bio) : null,
+          ),
+          const Divider(height: 1, indent: 55),
+          _buildListTile(
+            icon: Icons.location_on_rounded,
+            title: "Location",
+            subtitle: "${user.region}, ${user.street}",
+            onTap: isMe ? () => _showEditLocationSheet(user.uid, user.region, user.street) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListTile({required IconData icon, required String title, required String subtitle, VoidCallback? onTap}) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.blue[700]),
+      title: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 15, color: Colors.black87)),
+      trailing: onTap != null ? const Icon(Icons.chevron_right, size: 18) : null,
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildSectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 25, 20, 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[600], letterSpacing: 1.1)),
+      ),
     );
   }
 
   Widget _buildContributions(String uid) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20), padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [Colors.blue.shade900, Colors.blue.shade600]),
+        borderRadius: BorderRadius.circular(15),
+      ),
       child: FutureBuilder<Map<String, int>>(
         future: _getContributionsData(uid),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           final data = snapshot.data ?? {'votes': 0, 'comments': 0};
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildContributionItem("Votes Received", data['votes']!, Icons.thumb_up),
-              _buildContributionItem("Comments", data['comments']!, Icons.comment),
+              _buildStatBox("Votes Received", data['votes']!.toString()),
+              Container(width: 1, height: 30, color: Colors.white24),
+              _buildStatBox("Comments", data['comments']!.toString()),
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _buildStatBox(String label, String value) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ],
     );
   }
 
@@ -306,33 +368,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return {'votes': votes, 'comments': comments};
   }
 
-  Widget _buildContributionItem(String label, int count, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 32, color: Colors.blue),
-        const SizedBox(height: 8),
-        Text(count.toString(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center),
-      ],
-    );
-  }
-
   Widget _buildUserIssues(String uid) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('Issues').where('createdBy', isEqualTo: uid).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox.shrink();
         final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const Padding(padding: EdgeInsets.all(20), child: Text("No issues reported yet."));
+        if (docs.isEmpty) return const Padding(padding: EdgeInsets.all(20), child: Text("No issues found."));
+
         return ListView.builder(
-          shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), itemCount: docs.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: docs.length,
           itemBuilder: (context, i) {
             final issue = Issue.fromFirestore(docs[i]);
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
               child: ListTile(
-                leading: const Icon(Icons.description_outlined), title: Text(issue.title),
-                subtitle: Text("${issue.status} • ${issue.voteCount} Votes"),
+                leading: CircleAvatar(backgroundColor: Colors.blue.withOpacity(0.1), child: const Icon(Icons.description, color: Colors.blue, size: 20)),
+                title: Text(issue.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(issue.status, style: TextStyle(color: issue.status == 'Resolved' ? Colors.green : Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 12),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue))),
               ),
             );
@@ -345,9 +402,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildLogoutButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 50), side: const BorderSide(color: Colors.red), foregroundColor: Colors.red),
-        onPressed: () => _auth.logout(), icon: const Icon(Icons.logout), label: const Text("Sign Out"),
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(double.infinity, 55),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: const BorderSide(color: Colors.red)),
+          foregroundColor: Colors.red,
+        ),
+        onPressed: _handleLogout,
+        icon: const Icon(Icons.logout_rounded),
+        label: const Text("Sign Out", style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
   }

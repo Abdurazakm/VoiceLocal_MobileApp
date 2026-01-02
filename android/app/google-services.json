@@ -12,7 +12,20 @@
           "package_name": "com.abdurazak.voicelocal"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "695306609058-8pp4b18td686sot9snvrma2f8jsm8p9f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.abdurazak.voicelocal",
+            "certificate_hash": "27cde089a96c6f20c80aae7d58a777219fd36eb8"
+          }
+        },
+        {
+          "client_id": "695306609058-6fuh6gh7khrb37gef1kjevfjsn8066gt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDq1G4-jYC2B6kAbDYw9dRHD-48nCP97KQ"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "695306609058-6fuh6gh7khrb37gef1kjevfjsn8066gt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "695306609058-kbj4s8kgfrha7q01ffb5lu9stu4t7u86.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.voicelocal"
+              }
+            }
+          ]
         }
       }
     }

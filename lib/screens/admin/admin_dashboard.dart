@@ -6,12 +6,16 @@ import '../user/home_screen.dart';
 import '../../screens/admin/system_analytics_screen.dart';
 import '../../models/user_model.dart';
 import '../user/profile/ProfileScreen.dart'; 
-import 'notifications_screen.dart'; // Ensure this file exists
+import 'notifications_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   final UserModel currentUser;
 
   const AdminDashboard({super.key, required this.currentUser});
+
+  // Professional Color Palette (Matching UserManagementScreen)
+  final Color primaryColor = const Color(0xFF1A237E); 
+  final Color backgroundColor = const Color(0xFFF8F9FE);
 
   String _toTitleCase(String text) {
     if (text.isEmpty) return text;
@@ -21,22 +25,27 @@ class AdminDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String? sector = currentUser.assignedSector;
-    final String? region = currentUser.region;
+    final String? region = currentUser.assignedRegion; // Changed to match common field name
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
+      backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: Text(currentUser.role == 'super_admin' ? "Super Admin" : "${sector ?? 'Sector'} Admin"),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
         elevation: 0,
+        title: Text(
+          currentUser.role == 'super_admin' ? "Super Admin Panel" : "${sector ?? 'Sector'} Management",
+          style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5),
+        ),
+        centerTitle: true,
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
         actions: [
-          _buildNotificationBadge(context), // NOTIFICATION WITH COUNTER
+          _buildNotificationBadge(context),
           _buildProfileButton(context, currentUser.uid),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
         ],
       ),
       body: RefreshIndicator(
+        color: primaryColor,
         onRefresh: () async => Future.delayed(const Duration(seconds: 1)),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -46,16 +55,20 @@ class AdminDashboard extends StatelessWidget {
               _buildHeader(sector, region),
               
               const Padding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
-                child: Text("Regional Overview", 
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.blueGrey)),
+                padding: EdgeInsets.fromLTRB(20, 25, 20, 12),
+                child: Text(
+                  "REGIONAL OVERVIEW", 
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.blueGrey, letterSpacing: 1.2),
+                ),
               ),
               _buildStatGrid(sector, region), 
 
               const Padding(
-                padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
-                child: Text("Management Tools", 
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                padding: EdgeInsets.fromLTRB(20, 30, 20, 12),
+                child: Text(
+                  "MANAGEMENT TOOLS", 
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.blueGrey, letterSpacing: 1.2),
+                ),
               ),
               
               _buildMenuTile(
@@ -81,7 +94,7 @@ class AdminDashboard extends StatelessWidget {
                 _buildMenuTile(
                   context,
                   title: "System Analytics",
-                  subtitle: "View reporting trends",
+                  subtitle: "View reporting trends and data",
                   icon: Icons.analytics_outlined,
                   color: Colors.blue,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const SystemAnalyticsScreen())),
@@ -104,7 +117,6 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
-  // --- NOTIFICATION BADGE LOGIC ---
   Widget _buildNotificationBadge(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -114,7 +126,6 @@ class AdminDashboard extends StatelessWidget {
       builder: (context, snapshot) {
         int unreadCount = 0;
         if (snapshot.hasData) {
-          // Count notifications where currentUser.uid is NOT in the readBy array
           unreadCount = snapshot.data!.docs.where((doc) {
             List readBy = doc['readBy'] ?? [];
             return !readBy.contains(currentUser.uid);
@@ -125,26 +136,30 @@ class AdminDashboard extends StatelessWidget {
           alignment: Alignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.notifications_none_rounded, size: 28),
+              icon: const Icon(Icons.notifications_none_rounded, size: 26),
               onPressed: () => Navigator.push(
                 context, 
                 MaterialPageRoute(builder: (context) => AdminNotificationsScreen(
                   sector: currentUser.assignedSector,
-                  region: currentUser.region,
+                  region: currentUser.assignedRegion,
                 ))
               ),
             ),
             if (unreadCount > 0)
               Positioned(
-                right: 8,
-                top: 8,
+                right: 6,
+                top: 6,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent, 
+                    shape: BoxShape.circle,
+                    border: Border.all(color: primaryColor, width: 1.5),
+                  ),
                   constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                   child: Text(
                     '$unreadCount',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -162,10 +177,14 @@ class AdminDashboard extends StatelessWidget {
         String? url = (snapshot.data?.data() as Map<String, dynamic>?)?['profilePic'];
         return InkWell(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen())),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Container(
+            margin: const EdgeInsets.only(left: 8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
+            ),
             child: CircleAvatar(
-              backgroundColor: Colors.white24,
+              backgroundColor: Colors.white.withValues(alpha: 0.2),
               radius: 16,
               backgroundImage: (url != null && url.isNotEmpty) ? NetworkImage(url) : null,
               child: (url == null || url.isEmpty) ? const Icon(Icons.person, color: Colors.white, size: 18) : null,
@@ -179,18 +198,42 @@ class AdminDashboard extends StatelessWidget {
   Widget _buildHeader(String? sector, String? region) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
       decoration: BoxDecoration(
-        color: Colors.indigo.withOpacity(0.05),
-        border: Border(bottom: BorderSide(color: Colors.indigo.withOpacity(0.1))),
+        color: primaryColor,
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Welcome, ${currentUser.name}", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(
+            "Welcome back,",
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
+          ),
           const SizedBox(height: 4),
-          Text(currentUser.role == 'super_admin' ? "System Administrator" : "Assigned: $sector Sector | $region",
-            style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.w600)),
+          Text(
+            currentUser.name,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.verified_user, color: Colors.white70, size: 14),
+                const SizedBox(width: 8),
+                Text(
+                  currentUser.role == 'super_admin' ? "System Administrator" : "$sector Sector • $region",
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -215,11 +258,11 @@ class AdminDashboard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
             children: [
-              _statCard("Total", total.toString(), Colors.blue),
-              const SizedBox(width: 12),
-              _statCard("Pending", pending.toString(), Colors.orange),
-              const SizedBox(width: 12),
-              _statCard("Resolved", resolved.toString(), Colors.green),
+              _statCard("Total", total.toString(), Colors.indigo),
+              const SizedBox(width: 10),
+              _statCard("Pending", pending.toString(), Colors.orange.shade700),
+              const SizedBox(width: 10),
+              _statCard("Resolved", resolved.toString(), Colors.green.shade700),
             ],
           ),
         );
@@ -233,15 +276,20 @@ class AdminDashboard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-          border: Border.all(color: color.withOpacity(0.1)),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04), 
+              blurRadius: 10, 
+              offset: const Offset(0, 4)
+            )
+          ],
         ),
         child: Column(
           children: [
-            Text(count, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+            Text(count, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey.shade600)),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
           ],
         ),
       ),
@@ -251,12 +299,30 @@ class AdminDashboard extends StatelessWidget {
   Widget _buildMenuTile(BuildContext context, {required String title, required String subtitle, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)]),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(15), 
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03), 
+            blurRadius: 8, 
+            offset: const Offset(0, 2)
+          )
+        ],
+      ),
       child: ListTile(
-        leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Icon(icon, color: color)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
-        trailing: const Icon(Icons.chevron_right_rounded),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          padding: const EdgeInsets.all(10), 
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1), 
+            borderRadius: BorderRadius.circular(12)
+          ), 
+          child: Icon(icon, color: color, size: 24)
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF263238))),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        trailing: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey.shade400),
         onTap: onTap,
       ),
     );
