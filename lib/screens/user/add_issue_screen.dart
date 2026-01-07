@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Added for manual notification write
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import '../../services/issue_service.dart';
 
 class AddIssueScreen extends StatefulWidget {
@@ -27,6 +27,7 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
   final List<String> _sectors = ['Water', 'Electric', 'Roads', 'Waste', 'Telecom'];
   final List<String> _regions = ['Addis Ababa', 'Oromia', 'Amhara', 'Sidama', 'Tigray', 'Dire Dawa'];
 
+  // This method is now correctly triggered with the isVideo flag
   Future<void> _pickFile(ImageSource source, bool isVideo) async {
     final picker = ImagePicker();
     try {
@@ -43,6 +44,36 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
     } catch (e) {
       debugPrint("Error picking file: $e");
     }
+  }
+
+  // Helper to show a choice between Image and Video
+  void _showPickerOptions(ImageSource source) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: Icon(Icons.image, color: primaryColor),
+              title: const Text('Pick Image'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickFile(source, false);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.videocam, color: primaryColor),
+              title: const Text('Pick Video'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickFile(source, true);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _submitIssue() async {
@@ -64,11 +95,9 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
     String? fileUrl;
     try {
       if (_selectedFile != null) {
-        // Upload to Cloudinary
         fileUrl = await _issueService.uploadToCloudinary(_selectedFile!, _isVideo);
       }
 
-      // 1. Create the Issue and get the new ID back
       final String issueId = await _issueService.createIssue(
         _titleController.text,
         _descController.text,
@@ -78,7 +107,6 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
         street: _streetController.text.trim(),
       );
 
-      // 2. Create the Admin Notification manually (Replaces Cloud Functions)
       await FirebaseFirestore.instance.collection('Notifications').add({
         'title': 'New $_selectedCategory Issue',
         'body': '${_titleController.text} at ${_streetController.text.trim()}',
@@ -87,7 +115,7 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
         'issueId': issueId,
         'type': 'new_issue',
         'timestamp': FieldValue.serverTimestamp(),
-        'readBy': [], // Ensures it appears as unread for admins
+        'readBy': [], 
       });
 
       if (mounted) {
@@ -216,11 +244,11 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
     return Row(
       children: [
         Expanded(
-          child: _outlinedPickerButton("Gallery", Icons.photo_library, () => _pickFile(ImageSource.gallery, false)),
+          child: _outlinedPickerButton("Gallery", Icons.photo_library, () => _showPickerOptions(ImageSource.gallery)),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _outlinedPickerButton("Camera", Icons.camera_alt, () => _pickFile(ImageSource.camera, false)),
+          child: _outlinedPickerButton("Camera", Icons.camera_alt, () => _showPickerOptions(ImageSource.camera)),
         ),
       ],
     );

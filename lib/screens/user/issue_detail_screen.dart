@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:video_player/video_player.dart';
+import 'package:chewie/chewie.dart';
 import '../../models/issue_model.dart';
 import '../../models/comment_model.dart';
 import '../../services/issue_service.dart';
@@ -19,167 +21,141 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
   final IssueService _issueService = IssueService();
   final Set<String> _visibleReplies = {};
 
+  // Video playback controllers
+  VideoPlayerController? _videoPlayerController;
+  ChewieController? _chewieController;
+  bool _isVideoInitialized = false;
+
   // Theme Colors
-  final Color primaryColor = const Color(0xFF1A237E); // Deep Indigo
+  final Color primaryColor = const Color(0xFF1A237E); 
   final Color accentColor = const Color(0xFF3949AB);
 
-  void _navigateToProfile(String userId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ProfileScreen(targetUserId: userId),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _checkAndInitMedia();
   }
 
-  // --- SAFE DATA RETRIEVAL HELPER ---
-  String? _getProfilePic(DocumentSnapshot snap) {
-    if (!snap.exists) return null;
-    final data = snap.data() as Map<String, dynamic>?;
-    if (data != null && data.containsKey('profilePic')) {
-      return data['profilePic'] as String?;
+  // Helper to determine if we should treat the attachment as a video
+  bool _isActuallyAVideo() {
+    final url = widget.issue.attachmentUrl?.toLowerCase() ?? "";
+    // Check extension if the isVideo flag is false
+    bool hasVideoExtension = url.contains(".mp4") || 
+                             url.contains(".mov") || 
+                             url.contains(".avi") || 
+                             url.contains(".m4v");
+    return widget.issue.isVideo || hasVideoExtension;
+  }
+
+  void _checkAndInitMedia() {
+    if (_isActuallyAVideo() && widget.issue.attachmentUrl != null) {
+      _initVideo();
     }
-    return null;
   }
 
-  // --- ACTIONS & DIALOGS ---
+  Future<void> _initVideo() async {
+    try {
+      _videoPlayerController = VideoPlayerController.networkUrl(
+        Uri.parse(widget.issue.attachmentUrl!),
+      );
 
-  void _confirmDeleteIssue(String id) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Report?"),
-        content: const Text("This will permanently remove this issue report. This action cannot be undone."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () async {
-              await _issueService.deleteIssue(id);
-              if (mounted) {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Go back to previous screen
-              }
-            },
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteComment(String commentId, String issueId) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Delete Comment?"),
-        content: const Text("Are you sure you want to remove this comment?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () async {
-              await _issueService.deleteComment(commentId, issueId);
-              if (mounted) Navigator.pop(context);
-            },
-            child: const Text("Delete", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showStatusUpdateSheet(String issueId, String currentStatus) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Update Resolution Status", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 15),
-            ...['Pending', 'In Progress', 'Resolved'].map((status) {
-              bool isSelected = status == currentStatus;
-              return ListTile(
-                leading: Icon(
-                  status == 'Resolved' ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                  color: isSelected ? primaryColor : Colors.grey,
-                ),
-                title: Text(status, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? primaryColor : Colors.black87)),
-                trailing: isSelected ? Icon(Icons.check, color: primaryColor) : null,
-                onTap: () async {
-                  await FirebaseFirestore.instance.collection('Issues').doc(issueId).update({'status': status});
-                  if (mounted) Navigator.pop(context);
-                },
-              );
-            }),
-          ],
+      await _videoPlayerController!.initialize();
+      
+      _chewieController = ChewieController(
+        videoPlayerController: _videoPlayerController!,
+        autoPlay: false,
+        looping: false,
+        aspectRatio: _videoPlayerController!.value.aspectRatio,
+        allowFullScreen: true,
+        allowMuting: true,
+        showControls: true,
+        placeholder: Container(color: Colors.black),
+        materialProgressColors: ChewieProgressColors(
+          playedColor: primaryColor,
+          handleColor: accentColor,
         ),
-      ),
-    );
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(errorMessage, style: const TextStyle(color: Colors.white)),
+          );
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isVideoInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Video Initialization Error: $e");
+    }
   }
 
-  void _showEditIssueSheet(Issue currentIssue) {
-    final tEdit = TextEditingController(text: currentIssue.title);
-    final dEdit = TextEditingController(text: currentIssue.description);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Edit Issue Details", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 15),
-            TextField(controller: tEdit, decoration: InputDecoration(labelText: "Title", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 12),
-            TextField(controller: dEdit, maxLines: 4, decoration: InputDecoration(labelText: "Description", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              onPressed: () async {
-                if (tEdit.text.isEmpty) return;
-                await _issueService.updateIssue(currentIssue.id, tEdit.text, dEdit.text);
-                if (mounted) Navigator.pop(context);
-              },
-              child: const Text("Save Changes"),
-            ),
-            const SizedBox(height: 30),
-          ],
-        ),
-      ),
-    );
+  @override
+  void dispose() {
+    _videoPlayerController?.dispose();
+    _chewieController?.dispose();
+    _commentController.dispose();
+    super.dispose();
   }
 
   // --- UI COMPONENTS ---
 
-  Widget _buildStatusChip(String status) {
-    Color color = status == 'Resolved' ? Colors.green : (status == 'In Progress' ? Colors.orange : Colors.blueGrey);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))),
-      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-    );
-  }
-
   Widget _buildMedia(String? url) {
     if (url == null || url.isEmpty) return const SizedBox.shrink();
-    bool isVideo = url.contains(".mp4") || url.contains("video/upload");
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       width: double.infinity,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]),
+      decoration: BoxDecoration(
+        color: Colors.black, // Background for videos
+        borderRadius: BorderRadius.circular(16), 
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: isVideo
-            ? Container(height: 220, color: Colors.black, child: const Icon(Icons.play_circle_fill, color: Colors.white, size: 64))
-            : Image.network(url, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(height: 150, color: Colors.grey[200], child: const Icon(Icons.broken_image))),
+        child: _isActuallyAVideo() ? _buildVideoPlayer() : _buildImage(url),
       ),
     );
   }
+
+  Widget _buildVideoPlayer() {
+    if (_isVideoInitialized && _chewieController != null) {
+      return AspectRatio(
+        aspectRatio: _videoPlayerController!.value.aspectRatio,
+        child: Chewie(controller: _chewieController!),
+      );
+    } else {
+      return Container(
+        height: 220,
+        color: Colors.black,
+        child: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 12),
+              Text("Loading video...", style: TextStyle(color: Colors.white70, fontSize: 12)),
+            ],
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildImage(String url) {
+    return Image.network(
+      url, 
+      fit: BoxFit.cover, 
+      errorBuilder: (c, e, s) => Container(
+        height: 150, 
+        color: Colors.grey[200], 
+        child: const Center(child: Icon(Icons.broken_image, size: 40, color: Colors.grey))
+      ),
+    );
+  }
+
+  // --- APP BUILD ---
 
   @override
   Widget build(BuildContext context) {
@@ -188,10 +164,11 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('Issues').doc(widget.issue.id).snapshots(),
       builder: (context, snapshot) {
-        Issue currentIssue = snapshot.hasData && snapshot.data!.exists ? Issue.fromFirestore(snapshot.data!) : widget.issue;
+        Issue currentIssue = snapshot.hasData && snapshot.data!.exists 
+            ? Issue.fromFirestore(snapshot.data!) 
+            : widget.issue;
 
         return Scaffold(
-          key: ValueKey(currentIssue.id),
           backgroundColor: Colors.white,
           appBar: AppBar(
             backgroundColor: primaryColor,
@@ -212,30 +189,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: primaryColor, borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                _buildStatusChip(currentIssue.status),
-                                Text(currentIssue.category.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(currentIssue.title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 12),
-                            Row(children: [
-                              const Icon(Icons.location_on, color: Colors.white60, size: 16),
-                              const SizedBox(width: 4),
-                              Expanded(child: Text("${currentIssue.street}, ${currentIssue.region}", style: const TextStyle(color: Colors.white70, fontSize: 14))),
-                            ]),
-                          ],
-                        ),
-                      ),
+                      _buildHeader(currentIssue),
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Column(
@@ -250,10 +204,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                             const SizedBox(height: 30),
                             const Text("Community Discussion", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                             const SizedBox(height: 10),
+                            _buildCommentsList(currentIssue, uid),
                           ],
                         ),
                       ),
-                      _buildCommentsList(currentIssue, uid),
                       const SizedBox(height: 120),
                     ],
                   ),
@@ -268,6 +222,47 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     );
   }
 
+  // --- REFACTORED SUB-WIDGETS ---
+
+  Widget _buildHeader(Issue currentIssue) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: primaryColor, 
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30))
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildStatusChip(currentIssue.status),
+              Text(currentIssue.category.toUpperCase(), style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(currentIssue.title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 12),
+          Row(children: [
+            const Icon(Icons.location_on, color: Colors.white60, size: 16),
+            const SizedBox(width: 4),
+            Expanded(child: Text("${currentIssue.street}, ${currentIssue.region}", style: const TextStyle(color: Colors.white70, fontSize: 14))),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String status) {
+    Color color = status == 'Resolved' ? Colors.green : (status == 'In Progress' ? Colors.orange : Colors.blueGrey);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.3))),
+      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+    );
+  }
+
   Widget _buildAuthorRow(Issue currentIssue, String uid) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('Users').doc(currentIssue.createdBy).snapshots(),
@@ -277,7 +272,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
         if (userSnap.hasData && userSnap.data!.exists) {
           final userData = userSnap.data!.data() as Map<String, dynamic>?;
           name = userData?['name'] ?? "User";
-          pic = _getProfilePic(userSnap.data!);
+          pic = userData?['profilePic'] as String?;
         }
 
         return FutureBuilder<DocumentSnapshot>(
@@ -405,8 +400,13 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance.collection('Users').doc(userId).snapshots(),
       builder: (context, snap) {
-        String? pic = snap.hasData ? _getProfilePic(snap.data!) : null;
-        return CircleAvatar(radius: small ? 12 : 16, backgroundImage: (pic != null && pic.isNotEmpty) ? NetworkImage(pic) : null, child: pic == null ? Icon(Icons.person, size: small ? 14 : 18) : null);
+        final data = snap.data?.data() as Map<String, dynamic>?;
+        String? pic = data != null ? (data['profilePic'] as String?) : null;
+        return CircleAvatar(
+          radius: small ? 12 : 16,
+          backgroundImage: (pic != null && pic.isNotEmpty) ? NetworkImage(pic) : null,
+          child: pic == null ? const Icon(Icons.person, size: 16) : null,
+        );
       },
     );
   }
@@ -436,6 +436,105 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     );
   }
 
+  // --- ACTIONS ---
+
+  void _navigateToProfile(String userId) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => ProfileScreen(targetUserId: userId)));
+  }
+
+  void _confirmDeleteIssue(String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Report?"),
+        content: const Text("This action cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              await _issueService.deleteIssue(id);
+              if (mounted) { Navigator.pop(context); Navigator.pop(context); }
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteComment(String commentId, String issueId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Delete Comment?"),
+        content: const Text("Are you sure?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              await _issueService.deleteComment(commentId, issueId);
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showStatusUpdateSheet(String issueId, String currentStatus) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: ['Pending', 'In Progress', 'Resolved'].map((status) {
+            bool isSelected = status == currentStatus;
+            return ListTile(
+              leading: Icon(status == 'Resolved' ? Icons.check_circle : Icons.pending, color: isSelected ? primaryColor : Colors.grey),
+              title: Text(status, style: TextStyle(color: isSelected ? primaryColor : Colors.black87)),
+              onTap: () async {
+                await FirebaseFirestore.instance.collection('Issues').doc(issueId).update({'status': status});
+                if (mounted) Navigator.pop(context);
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  void _showEditIssueSheet(Issue currentIssue) {
+    final tEdit = TextEditingController(text: currentIssue.title);
+    final dEdit = TextEditingController(text: currentIssue.description);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: tEdit, decoration: const InputDecoration(labelText: "Title")),
+            TextField(controller: dEdit, maxLines: 3, decoration: const InputDecoration(labelText: "Description")),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () async {
+                await _issueService.updateIssue(currentIssue.id, tEdit.text, dEdit.text);
+                if (mounted) Navigator.pop(context);
+              },
+              child: const Text("Save"),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showReplySheet({String? pId, String? rName}) {
     _commentController.clear();
     showModalBottomSheet(
@@ -447,12 +546,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(rName != null ? "Replying to @$rName" : "Write a comment", style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
+            Text(rName != null ? "Replying to @$rName" : "Write a comment"),
             TextField(controller: _commentController, autofocus: true, decoration: const InputDecoration(hintText: "Type something helpful...")),
             const SizedBox(height: 15),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 45)),
               onPressed: () async {
                 if (_commentController.text.isEmpty) return;
                 await _issueService.postComment(widget.issue.id, _commentController.text, parentId: pId, replyToName: rName);

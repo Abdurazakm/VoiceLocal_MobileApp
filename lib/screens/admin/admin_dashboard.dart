@@ -7,6 +7,8 @@ import '../../screens/admin/system_analytics_screen.dart';
 import '../../models/user_model.dart';
 import '../user/profile/ProfileScreen.dart'; 
 import 'notifications_screen.dart';
+// Added Seed Service Import
+import '../seed_service.dart';
 
 class AdminDashboard extends StatelessWidget {
   final UserModel currentUser;
@@ -39,6 +41,19 @@ class AdminDashboard extends StatelessWidget {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         actions: [
+          // Added Seed & Clear Functionality for Super Admin
+          if (currentUser.role == 'super_admin') ...[
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+              tooltip: "Clear Database",
+              onPressed: () => _showClearConfirmation(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.storage_rounded, color: Colors.orangeAccent),
+              tooltip: "Seed Demo Data",
+              onPressed: () => _showSeedConfirmation(context),
+            ),
+          ],
           _buildNotificationBadge(context),
           _buildProfileButton(context, currentUser.uid),
           const SizedBox(width: 12),
@@ -116,6 +131,91 @@ class AdminDashboard extends StatelessWidget {
       ),
     );
   }
+
+  // Confirmation Dialog for Clearing Data
+  void _showClearConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Clear All Issues?"),
+        content: const Text("This will permanently delete all reported issues and their comments. This cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () async {
+              Navigator.pop(context);
+              final instance = FirebaseFirestore.instance;
+              final batch = instance.batch();
+              var snapshots = await instance.collection('Issues').get();
+              for (var doc in snapshots.docs) {
+                batch.delete(doc.reference);
+              }
+              await batch.commit();
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Database cleared successfully!")),
+                );
+              }
+            },
+            child: const Text("Clear All", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Confirmation Dialog for Seeding
+  // Inside your AdminDashboard class...
+
+void _showSeedConfirmation(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false, // Prevent closing during process
+    builder: (context) => AlertDialog(
+      title: const Text("Seed Database"),
+      content: const Text("Inyecting 15 Ethiopian demo issues and comments. This takes a few seconds."),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            // Close the confirmation dialog
+            Navigator.pop(context);
+
+            // Show a progress indicator
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(child: CircularProgressIndicator()),
+            );
+
+            try {
+              await SeedService().seedIssuesWithComments();
+              
+              if (context.mounted) {
+                Navigator.pop(context); // Close the progress indicator
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Success: All 15 issues seeded!")),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                Navigator.pop(context); // Close the progress indicator
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text("Error seeding data: $e")),
+                );
+              }
+            }
+          },
+          child: const Text("Start Seeding"),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildNotificationBadge(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(

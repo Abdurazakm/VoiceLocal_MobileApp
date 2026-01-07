@@ -8,6 +8,7 @@ class Issue {
   final String region;
   final String street;
   final String? attachmentUrl;
+  final bool isVideo;
   final String status;
   final int voteCount;
   final int commentCount; // NEW FIELD
@@ -23,6 +24,7 @@ class Issue {
     required this.region,
     required this.street,
     this.attachmentUrl,
+    this.isVideo = false,
     required this.status,
     required this.voteCount,
     required this.commentCount, // ADDED
@@ -41,6 +43,7 @@ class Issue {
       region: data['region'] ?? 'Unknown',
       street: data['street'] ?? 'No street provided',
       attachmentUrl: data['attachmentUrl'],
+      isVideo: data['isVideo'] ?? false,
       status: data['status'] ?? 'Open',
       voteCount: data['voteCount'] ?? 0,
       commentCount: data['commentCount'] ?? 0, // PARSING NEW FIELD
