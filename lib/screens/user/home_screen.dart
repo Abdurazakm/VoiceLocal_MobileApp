@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shimmer/shimmer.dart';
-import 'dart:async'; // Added for StreamSubscription
+import 'package:video_player/video_player.dart'; 
+import 'dart:async'; 
 import '../../models/issue_model.dart';
 import 'add_issue_screen.dart';
 import 'issue_detail_screen.dart';
@@ -19,7 +20,7 @@ class UserHome extends StatefulWidget {
 class _UserHomeState extends State<UserHome> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  StreamSubscription? _realtimeSubscription; // Track the listener
+  StreamSubscription? _realtimeSubscription; 
   
   final Color primaryColor = const Color(0xFF3F51B5);
   final Color surfaceColor = Colors.white;
@@ -64,46 +65,58 @@ class _UserHomeState extends State<UserHome> {
             userReg = (data?['region'] ?? '').toString().trim();
             userStr = (data?['street'] ?? '').toString().trim();
             userRole = data?['role'] ?? 'user';
-            adminSector = data?['assignedSector'];
+            // Ensure this field matches your Firestore "Users" collection field name
+            adminSector = data?['assignedSector'] ?? data?['sector']; 
           });
         }
       } catch (e) {
         debugPrint("Error fetching user data: $e");
       }
     }
-    // 1. Fetch initial batch
+    // Initial fetch
     await _fetchIssues(isRefresh: true);
-    // 2. Start listening for new issues added AFTER the initial fetch
     _setupRealTimeListener();
   }
 
-  // THIS IS THE KEY: Listens for any NEW issues and adds them to the top
   void _setupRealTimeListener() {
     _realtimeSubscription?.cancel();
     
     Query query = FirebaseFirestore.instance.collection('Issues');
+
+    // SECTOR ADMIN FILTERING LOGIC
     if (userRole == 'sector_admin' && adminSector != null) {
       query = query
           .where('category', isEqualTo: _toTitleCase(adminSector!))
           .where('region', isEqualTo: _toTitleCase(userReg));
     }
 
-    // Listen only for the most recent item
     _realtimeSubscription = query
         .orderBy('createdAt', descending: true)
-        .limit(1) 
+        .limit(20) 
         .snapshots()
         .listen((snapshot) {
       for (var change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
           final newIssue = Issue.fromFirestore(change.doc);
-          
-          // Check if this issue is already in our list to prevent duplicates
           bool exists = _issues.any((issue) => issue.id == newIssue.id);
-          
           if (!exists) {
             setState(() {
-              _issues.insert(0, newIssue); // Push to the top instantly
+              _issues.insert(0, newIssue); 
+              if (userRole == 'user') _applySorting();
+            });
+          }
+        } 
+        else if (change.type == DocumentChangeType.removed) {
+          setState(() {
+            _issues.removeWhere((issue) => issue.id == change.doc.id);
+          });
+        }
+        else if (change.type == DocumentChangeType.modified) {
+          final modIssue = Issue.fromFirestore(change.doc);
+          int idx = _issues.indexWhere((i) => i.id == modIssue.id);
+          if (idx != -1) {
+            setState(() {
+              _issues[idx] = modIssue;
               if (userRole == 'user') _applySorting();
             });
           }
@@ -129,6 +142,8 @@ class _UserHomeState extends State<UserHome> {
 
     try {
       Query query = FirebaseFirestore.instance.collection('Issues');
+
+      // SECTOR ADMIN FILTERING LOGIC
       if (userRole == 'sector_admin' && adminSector != null) {
         query = query
             .where('category', isEqualTo: _toTitleCase(adminSector!))
@@ -152,7 +167,6 @@ class _UserHomeState extends State<UserHome> {
         final List<Issue> newIssues = snapshot.docs.map<Issue>((doc) => Issue.fromFirestore(doc)).toList();
         
         setState(() {
-          // Add only issues that aren't already in the list (prevents collision with listener)
           for (var newItem in newIssues) {
             if (!_issues.any((existing) => existing.id == newItem.id)) {
               _issues.add(newItem);
@@ -206,7 +220,7 @@ class _UserHomeState extends State<UserHome> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isAdmin ? "System Overview" : "Community Feed", 
+                    Text(isAdmin ? "Sector Administration" : "Community Feed", 
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: textDark)),
                     if (isAdmin) _buildAdminStats(isAdmin),
                     const SizedBox(height: 15),
@@ -238,9 +252,6 @@ class _UserHomeState extends State<UserHome> {
     );
   }
 
-  // --- STYLES AND HELPERS REMAIN UNCHANGED FROM YOUR CODE ---
-  // (Included below for completeness in your copy-paste)
-
   Widget _buildAppBar(bool isAdmin, String uid) {
     return SliverAppBar(
       expandedHeight: 120.0,
@@ -263,7 +274,7 @@ class _UserHomeState extends State<UserHome> {
       actions: [
         _buildProfileButton(uid),
         IconButton(
-          icon: Icon(Icons.logout_rounded, color: textLight, size: 24),
+          icon: const Icon(Icons.logout_rounded, color: Colors.red, size: 24),
           onPressed: () => FirebaseAuth.instance.signOut(),
         ),
         const SizedBox(width: 10),
@@ -294,7 +305,9 @@ class _UserHomeState extends State<UserHome> {
   Widget _buildAdminStats(bool isAdmin) {
     Query query = FirebaseFirestore.instance.collection('Issues');
     if (userRole == 'sector_admin' && adminSector != null) {
-      query = query.where('category', isEqualTo: _toTitleCase(adminSector!)).where('region', isEqualTo: _toTitleCase(userReg));
+      query = query
+          .where('category', isEqualTo: _toTitleCase(adminSector!))
+          .where('region', isEqualTo: _toTitleCase(userReg));
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -405,7 +418,7 @@ class _UserHomeState extends State<UserHome> {
     );
   }
 
-  void _handleIssueTap(Issue issue, bool isAdmin) {
+  void _handleIssueTap(Issue issue, bool isAdmin) async {
     if (isAdmin) {
       showModalBottomSheet(
         context: context,
@@ -433,14 +446,18 @@ class _UserHomeState extends State<UserHome> {
         ),
       );
     } else {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue)));
+      await Navigator.push(context, MaterialPageRoute(builder: (context) => IssueDetailScreen(issue: issue)));
+      _fetchIssues(isRefresh: true); 
     }
   }
 
   Widget _buildReportButton() {
     return FloatingActionButton.extended(
       backgroundColor: primaryColor,
-      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddIssueScreen())),
+      onPressed: () async {
+        await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddIssueScreen()));
+        _fetchIssues(isRefresh: true);
+      },
       icon: const Icon(Icons.add_location_alt_rounded, color: Colors.white),
       label: const Text("Report Issue", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
@@ -465,11 +482,27 @@ class _UserHomeState extends State<UserHome> {
   }
 
   Widget _buildLeadingMedia(Issue issue) {
+    bool looksLikeVideo = issue.isVideo || 
+        (issue.attachmentUrl?.toLowerCase().contains('.mp4') ?? false) ||
+        (issue.attachmentUrl?.toLowerCase().contains('.mov') ?? false);
+
     return Container(
       width: 85, height: 85,
-      decoration: BoxDecoration(color: backgroundColor, borderRadius: BorderRadius.circular(15)),
+      decoration: BoxDecoration(
+        color: textDark.withOpacity(0.05), 
+        borderRadius: BorderRadius.circular(15)
+      ),
       child: issue.attachmentUrl != null && issue.attachmentUrl!.isNotEmpty
-          ? ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(issue.attachmentUrl!, fit: BoxFit.cover, errorBuilder: (c, e, s) => Icon(Icons.broken_image, color: textLight)))
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(15),
+              child: looksLikeVideo 
+                ? VideoPreviewThumbnail(url: issue.attachmentUrl!) 
+                : Image.network(
+                    issue.attachmentUrl!, 
+                    fit: BoxFit.cover, 
+                    errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+            )
           : Icon(Icons.image_outlined, color: primaryColor.withOpacity(0.2), size: 30),
     );
   }
@@ -483,9 +516,66 @@ class _UserHomeState extends State<UserHome> {
 
   @override
   void dispose() {
-    _realtimeSubscription?.cancel(); // Always clean up subscriptions
+    _realtimeSubscription?.cancel(); 
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+
+class VideoPreviewThumbnail extends StatefulWidget {
+  final String url;
+  const VideoPreviewThumbnail({super.key, required this.url});
+
+  @override
+  State<VideoPreviewThumbnail> createState() => _VideoPreviewThumbnailState();
+}
+
+class _VideoPreviewThumbnailState extends State<VideoPreviewThumbnail> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
+      ..initialize().then((_) {
+        if (mounted) {
+          setState(() {
+            _isInitialized = true;
+            _controller.seekTo(const Duration(seconds: 1)); 
+          });
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)));
+    }
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _controller.value.size.width,
+              height: _controller.value.size.height,
+              child: VideoPlayer(_controller),
+            ),
+          ),
+        ),
+        const Icon(Icons.play_circle_outline, color: Colors.white70, size: 28),
+      ],
+    );
   }
 }

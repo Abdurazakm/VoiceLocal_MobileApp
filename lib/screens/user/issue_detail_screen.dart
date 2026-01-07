@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import '../../models/issue_model.dart';
@@ -39,7 +42,6 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
   // Helper to determine if we should treat the attachment as a video
   bool _isActuallyAVideo() {
     final url = widget.issue.attachmentUrl?.toLowerCase() ?? "";
-    // Check extension if the isVideo flag is false
     bool hasVideoExtension = url.contains(".mp4") || 
                              url.contains(".mov") || 
                              url.contains(".avi") || 
@@ -55,6 +57,10 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
 
   Future<void> _initVideo() async {
     try {
+      // Dispose old controller if exists (useful after edit)
+      await _videoPlayerController?.dispose();
+      _chewieController?.dispose();
+
       _videoPlayerController = VideoPlayerController.networkUrl(
         Uri.parse(widget.issue.attachmentUrl!),
       );
@@ -108,7 +114,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
       margin: const EdgeInsets.symmetric(vertical: 16),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.black, // Background for videos
+        color: Colors.black, 
         borderRadius: BorderRadius.circular(16), 
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)]
       ),
@@ -505,36 +511,235 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
       ),
     );
   }
-
+// --- UPDATED EDIT SHEET WITH STORAGE CLEANUP & INSTANT SYNC ---
   void _showEditIssueSheet(Issue currentIssue) {
     final tEdit = TextEditingController(text: currentIssue.title);
     final dEdit = TextEditingController(text: currentIssue.description);
+    final sEdit = TextEditingController(text: currentIssue.street);
+
+    String selectedCategory = currentIssue.category;
+    String selectedRegion = currentIssue.region;
+
+    File? _newMediaFile;
+    bool _isNewVideo = false;
+    bool _isUploading = false;
+
+    final List<String> categories = ['Pothole', 'Water Leak', 'Power Outage', 'Waste', 'Street Light', 'Road Block', 'Other'];
+    final List<String> regions = ['Downtown', 'North District', 'East Side', 'West Park', 'South Valley', 'Industrial Zone'];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: tEdit, decoration: const InputDecoration(labelText: "Title")),
-            TextField(controller: dEdit, maxLines: 3, decoration: const InputDecoration(labelText: "Description")),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                await _issueService.updateIssue(currentIssue.id, tEdit.text, dEdit.text);
-                if (mounted) Navigator.pop(context);
-              },
-              child: const Text("Save"),
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+            left: 20, right: 20, top: 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+                ),
+                const SizedBox(height: 20),
+                const Text("Update Report", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 20),
+
+                // --- MEDIA PREVIEW SECTION ---
+                const Text("Evidence Media", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey)),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () async {
+                    final picker = ImagePicker();
+                    final source = await showModalActionSheet(context);
+                    if (source == null) return;
+
+                    final XFile? pickedFile = source == 'image'
+                        ? await picker.pickImage(source: ImageSource.gallery)
+                        : await picker.pickVideo(source: ImageSource.gallery);
+
+                    if (pickedFile != null) {
+                      setSheetState(() {
+                        _newMediaFile = File(pickedFile.path);
+                        _isNewVideo = source == 'video';
+                      });
+                    }
+                  },
+                  child: Stack(
+                    children: [
+                      Container(
+                        height: 180,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(15),
+                          image: _newMediaFile != null && !_isNewVideo
+                              ? DecorationImage(image: FileImage(_newMediaFile!), fit: BoxFit.cover)
+                              : (currentIssue.attachmentUrl != null && !currentIssue.isVideo && _newMediaFile == null
+                                  ? DecorationImage(image: NetworkImage(currentIssue.attachmentUrl!), fit: BoxFit.cover)
+                                  : null),
+                        ),
+                        child: (_isNewVideo || (currentIssue.isVideo && _newMediaFile == null))
+                            ? const Center(
+                                child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.play_circle_fill, size: 50, color: Colors.white),
+                                  Text("Video Attached", style: TextStyle(color: Colors.white)),
+                                ],
+                              ))
+                            : (_newMediaFile == null && currentIssue.attachmentUrl == null
+                                ? const Icon(Icons.add_a_photo, size: 40, color: Colors.white54)
+                                : null),
+                      ),
+                      Positioned(
+                        bottom: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(20)),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.edit, size: 14, color: Colors.white),
+                              SizedBox(width: 4),
+                              Text("Change Media", style: TextStyle(color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // --- FORM FIELDS ---
+                TextField(
+                    controller: tEdit,
+                    decoration: InputDecoration(
+                        labelText: "Issue Title",
+                        prefixIcon: const Icon(Icons.title),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(height: 15),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
+                        decoration: InputDecoration(labelText: "Category", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                        items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 13)))).toList(),
+                        onChanged: (val) => setSheetState(() => selectedCategory = val!),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: regions.contains(selectedRegion) ? selectedRegion : regions.first,
+                        decoration: InputDecoration(labelText: "Region", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                        items: regions.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 13)))).toList(),
+                        onChanged: (val) => setSheetState(() => selectedRegion = val!),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+
+                TextField(
+                    controller: sEdit,
+                    decoration: InputDecoration(
+                        labelText: "Street Address",
+                        prefixIcon: const Icon(Icons.map_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(height: 15),
+
+                TextField(
+                    controller: dEdit,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                        labelText: "Detailed Description",
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+                const SizedBox(height: 25),
+
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(double.infinity, 56),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
+                  onPressed: _isUploading ? null : () async {
+                    setSheetState(() => _isUploading = true);
+
+                    String? finalUrl = currentIssue.attachmentUrl;
+                    bool finalIsVideo = currentIssue.isVideo;
+
+                    if (_newMediaFile != null) {
+                      // 1. Cleanup old storage file if it exists
+                      if (currentIssue.attachmentUrl != null) {
+                        try {
+                          await FirebaseStorage.instance.refFromURL(currentIssue.attachmentUrl!).delete();
+                        } catch (e) {
+                          debugPrint("Old file deletion failed: $e");
+                        }
+                      }
+                      // 2. Upload new file
+                      String fileName = "update_${DateTime.now().millisecondsSinceEpoch}";
+                      Reference ref = FirebaseStorage.instance.ref().child('issue_attachments/$fileName');
+                      await ref.putFile(_newMediaFile!);
+                      finalUrl = await ref.getDownloadURL();
+                      finalIsVideo = _isNewVideo;
+                    }
+
+                    // 3. Update Firestore
+                    await FirebaseFirestore.instance.collection('Issues').doc(currentIssue.id).update({
+                      'title': tEdit.text,
+                      'description': dEdit.text,
+                      'category': selectedCategory,
+                      'street': sEdit.text,
+                      'region': selectedRegion,
+                      'attachmentUrl': finalUrl,
+                      'isVideo': finalIsVideo,
+                    });
+
+                    if (mounted) Navigator.pop(context);
+                  },
+                  child: _isUploading
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text("Save Changes", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 40),
+              ],
             ),
-            const SizedBox(height: 30),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<String?> showModalActionSheet(BuildContext context) {
+    return showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(leading: const Icon(Icons.image), title: const Text('Photo'), onTap: () => Navigator.pop(context, 'image')),
+            ListTile(leading: const Icon(Icons.videocam), title: const Text('Video'), onTap: () => Navigator.pop(context, 'video')),
           ],
         ),
       ),
     );
   }
 
+  // --- UPDATED REPLY SHEET ---
   void _showReplySheet({String? pId, String? rName}) {
     _commentController.clear();
     showModalBottomSheet(
@@ -546,16 +751,22 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(rName != null ? "Replying to @$rName" : "Write a comment"),
-            TextField(controller: _commentController, autofocus: true, decoration: const InputDecoration(hintText: "Type something helpful...")),
+            Text(rName != null ? "Replying to @$rName" : "Write a comment", style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _commentController, 
+              autofocus: true, 
+              decoration: const InputDecoration(hintText: "Type something helpful...")
+            ),
             const SizedBox(height: 15),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white),
               onPressed: () async {
                 if (_commentController.text.isEmpty) return;
                 await _issueService.postComment(widget.issue.id, _commentController.text, parentId: pId, replyToName: rName);
                 if (mounted) Navigator.pop(context);
               },
-              child: const Text("Post"),
+              child: const Text("Post Comment"),
             ),
             const SizedBox(height: 30),
           ],
