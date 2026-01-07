@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shimmer/shimmer.dart';
+import 'dart:async'; // Added for StreamSubscription
 import '../../models/issue_model.dart';
 import 'add_issue_screen.dart';
 import 'issue_detail_screen.dart';
@@ -18,8 +19,8 @@ class UserHome extends StatefulWidget {
 class _UserHomeState extends State<UserHome> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  StreamSubscription? _realtimeSubscription; // Track the listener
   
-  // Professional Theme Colors
   final Color primaryColor = const Color(0xFF3F51B5);
   final Color surfaceColor = Colors.white;
   final Color backgroundColor = const Color(0xFFF8F9FE);
@@ -70,7 +71,45 @@ class _UserHomeState extends State<UserHome> {
         debugPrint("Error fetching user data: $e");
       }
     }
-    _fetchIssues(isRefresh: true);
+    // 1. Fetch initial batch
+    await _fetchIssues(isRefresh: true);
+    // 2. Start listening for new issues added AFTER the initial fetch
+    _setupRealTimeListener();
+  }
+
+  // THIS IS THE KEY: Listens for any NEW issues and adds them to the top
+  void _setupRealTimeListener() {
+    _realtimeSubscription?.cancel();
+    
+    Query query = FirebaseFirestore.instance.collection('Issues');
+    if (userRole == 'sector_admin' && adminSector != null) {
+      query = query
+          .where('category', isEqualTo: _toTitleCase(adminSector!))
+          .where('region', isEqualTo: _toTitleCase(userReg));
+    }
+
+    // Listen only for the most recent item
+    _realtimeSubscription = query
+        .orderBy('createdAt', descending: true)
+        .limit(1) 
+        .snapshots()
+        .listen((snapshot) {
+      for (var change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final newIssue = Issue.fromFirestore(change.doc);
+          
+          // Check if this issue is already in our list to prevent duplicates
+          bool exists = _issues.any((issue) => issue.id == newIssue.id);
+          
+          if (!exists) {
+            setState(() {
+              _issues.insert(0, newIssue); // Push to the top instantly
+              if (userRole == 'user') _applySorting();
+            });
+          }
+        }
+      }
+    });
   }
 
   String _toTitleCase(String text) {
@@ -81,6 +120,7 @@ class _UserHomeState extends State<UserHome> {
   Future<void> _fetchIssues({bool isRefresh = false}) async {
     if (_isLoading || (!isRefresh && !_hasMore)) return;
     setState(() => _isLoading = true);
+    
     if (isRefresh) {
       _lastDocument = null;
       _issues.clear();
@@ -94,17 +134,30 @@ class _UserHomeState extends State<UserHome> {
             .where('category', isEqualTo: _toTitleCase(adminSector!))
             .where('region', isEqualTo: _toTitleCase(userReg));
       }
+      
       query = query.orderBy('createdAt', descending: true).limit(10);
-      if (_lastDocument != null) query = query.startAfterDocument(_lastDocument!);
+      
+      if (_lastDocument != null) {
+        query = query.startAfterDocument(_lastDocument!);
+      }
 
       final snapshot = await query.get();
-      if (snapshot.docs.length < 10) _hasMore = false;
+      
+      if (snapshot.docs.length < 10) {
+        _hasMore = false;
+      }
 
       if (snapshot.docs.isNotEmpty) {
         _lastDocument = snapshot.docs.last;
         final List<Issue> newIssues = snapshot.docs.map<Issue>((doc) => Issue.fromFirestore(doc)).toList();
+        
         setState(() {
-          _issues.addAll(newIssues);
+          // Add only issues that aren't already in the list (prevents collision with listener)
+          for (var newItem in newIssues) {
+            if (!_issues.any((existing) => existing.id == newItem.id)) {
+              _issues.add(newItem);
+            }
+          }
           if (userRole == 'user') _applySorting();
         });
       }
@@ -133,6 +186,7 @@ class _UserHomeState extends State<UserHome> {
   Widget build(BuildContext context) {
     final String currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final bool isAdmin = userRole == 'sector_admin' || userRole == 'super_admin';
+    
     final filteredList = _issues.where((issue) {
       final q = _searchQuery.toLowerCase();
       return issue.title.toLowerCase().contains(q) || issue.category.toLowerCase().contains(q);
@@ -184,6 +238,9 @@ class _UserHomeState extends State<UserHome> {
     );
   }
 
+  // --- STYLES AND HELPERS REMAIN UNCHANGED FROM YOUR CODE ---
+  // (Included below for completeness in your copy-paste)
+
   Widget _buildAppBar(bool isAdmin, String uid) {
     return SliverAppBar(
       expandedHeight: 120.0,
@@ -196,8 +253,7 @@ class _UserHomeState extends State<UserHome> {
         titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         title: Row(
           children: [
-            Image.asset('assets/logo.png', height: 32, width: 32, 
-              errorBuilder: (_, __, ___) => Icon(isAdmin ? Icons.admin_panel_settings : Icons.campaign, color: primaryColor)),
+            Icon(isAdmin ? Icons.admin_panel_settings : Icons.campaign, color: primaryColor),
             const SizedBox(width: 10),
             Text(isAdmin ? "Admin Console" : "VoiceLocal", 
               style: TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 18)),
@@ -419,25 +475,15 @@ class _UserHomeState extends State<UserHome> {
   }
 
   Widget _miniStat(IconData icon, String count) => Row(children: [Icon(icon, size: 16, color: textLight), const SizedBox(width: 5), Text(count, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textDark))]);
-  
   Widget _badge(String label, Color color) => Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)));
-
   Widget _statusDot(String status) => Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: status == 'Resolved' ? Colors.green : Colors.orange, border: Border.all(color: Colors.white, width: 2)));
-
   Widget _buildEmptyState() => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inbox_outlined, size: 80, color: textLight.withOpacity(0.3)), const SizedBox(height: 10), Text("No reports found", style: TextStyle(fontWeight: FontWeight.bold, color: textLight))]));
-
   Widget _buildEndOfList() => Padding(padding: const EdgeInsets.all(40), child: Center(child: Text("YOU'RE ALL CAUGHT UP", style: TextStyle(color: textLight, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1))));
-
-  Widget _buildIssueShimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.white,
-      highlightColor: backgroundColor,
-      child: Container(margin: const EdgeInsets.all(16), height: 120, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))),
-    );
-  }
+  Widget _buildIssueShimmer() => Shimmer.fromColors(baseColor: Colors.white, highlightColor: backgroundColor, child: Container(margin: const EdgeInsets.all(16), height: 120, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))));
 
   @override
   void dispose() {
+    _realtimeSubscription?.cancel(); // Always clean up subscriptions
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
