@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceLocal - User Home</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Rounded" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3F51B5;
+            --surface-color: #ffffff;
+            --background-color: #F8F9FE;
+            --text-dark: #1A1C1E;
+            --text-light: #6C757D;
+            --resolved-green: #2E7D32;
+            --pending-orange: #EF6C00;
+        }
+
+        * {
+            box-sizing: border-box; /* Prevents padding from causing overflow */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #eef0f7; /* Darker background for the "desk" */
+            display: flex;
+            justify-content: center;
+        }
+
+        /* The "Phone" container */
+        .app-shell {
+            width: 100%;
+            max-width: 414px; /* Standard iPhone width */
+            height: 100vh;
+            background-color: var(--background-color);
+            position: relative;
+            overflow-y: auto; /* Allows scrolling inside the phone */
+            overflow-x: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* AppBar - Fixed at the top of the shell */
+        .app-bar {
+            background-color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            width: 100%;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+            flex-shrink: 0;
+        }
+
+        .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-text {
+            color: var(--primary-color);
+            font-weight: 900;
+            font-size: 1.1rem;
+        }
+
+        .actions-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .profile-pic {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(63, 81, 181, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-color);
+        }
+
+        /* Main Content Scrollable Area */
+        .scroll-content {
+            padding: 20px;
+            width: 100%;
+            /* Extra bottom padding so the FAB doesn't cover the last card */
+            padding-bottom: 120px; 
+        }
+
+        .feed-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin: 10px 0 20px 0;
+            color: var(--text-dark);
+        }
+
+        /* Search Bar */
+        .search-container {
+            background: white;
+            border-radius: 15px;
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+
+        .search-container input {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 14px;
+            background: transparent;
+        }
+
+        /* Issue Card */
+        .issue-card {
+            background: white;
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.04);
+            width: 100%;
+        }
+
+        .image-box {
+            width: 80px;
+            height: 80px;
+            background-color: var(--background-color);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .card-details {
+            flex: 1;
+            min-width: 0; /* Prevents text from pushing card width */
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .badge {
+            font-size: 9px;
+            font-weight: 900;
+            padding: 4px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .badge-my-street {
+            background: rgba(63, 81, 181, 0.1);
+            color: var(--primary-color);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .issue-name {
+            font-weight: 800;
+            font-size: 15px;
+            margin: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .location-text {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .card-footer {
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .footer-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .footer-stat i {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* Floating Button - Corrected Position */
+        .report-fab {
+            position: absolute;
+            bottom: 25px;
+            right: 20px;
+            background: var(--primary-color);
+            color: white;
+            padding: 14px 22px;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+            box-shadow: 0 10px 20px rgba(63, 81, 181, 0.3);
+            text-decoration: none;
+            font-size: 14px;
+            z-index: 200;
+        }
+
+        .report-fab:hover {
+            transform: translateY(-2px);
+            transition: 0.2s;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-shell">
+    <header class="app-bar">
+        <div class="logo-group">
+            <i class="material-icons-rounded" style="color: var(--primary-color)">campaign</i>
+            <span class="logo-text">VoiceLocal</span>
+        </div>
+        <div class="actions-group">
+            <div class="profile-pic">
+                <i class="material-icons-rounded" style="font-size: 18px;">person</i>
+            </div>
+            <i class="material-icons-rounded" style="color: var(--text-light); cursor: pointer;">logout</i>
+        </div>
+    </header>
+
+    <div class="scroll-content">
+        <h1 class="feed-title">Community Feed</h1>
+
+        <div class="search-container">
+            <i class="material-icons-rounded" style="color: rgba(63, 81, 181, 0.4); font-size: 20px;">search</i>
+            <input type="text" placeholder="Search issues or categories...">
+        </div>
+
+        <div class="issue-card">
+            <div class="image-box">
+                <i class="material-icons-rounded" style="color: #cbd5e0; font-size: 28px;">image</i>
+            </div>
+            <div class="card-details">
+                <div class="card-top">
+                    <span class="badge badge-my-street">MY STREET</span>
+                    <div class="status-dot" style="background: var(--pending-orange)"></div>
+                </div>
+                <h3 class="issue-name">Street Light Malfunction</h3>
+                <div class="location-text">Bole, Street 12</div>
+                <div class="card-footer">
+                    <div class="footer-stat"><i class="material-icons-rounded">thumb_up</i> 12</div>
+                    <div class="footer-stat"><i class="material-icons-rounded">mode_comment</i> 3</div>
+                    <span style="margin-left:auto; font-size: 10px; font-weight: 900; color: var(--pending-orange)">PENDING</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="issue-card">
+            <div class="image-box">
+                <i class="material-icons-rounded" style="color: #cbd5e0; font-size: 28px;">image</i>
+            </div>
+            <div class="card-details">
+                <div class="card-top">
+                    <span class="badge" style="background: #f1f3f5; color: #666;">WATER SUPPLY</span>
+                    <div class="status-dot" style="background: var(--resolved-green)"></div>
+                </div>
+                <h3 class="issue-name">Water Leakage</h3>
+                <div class="location-text">Arada, Piassa</div>
+                <div class="card-footer">
+                    <div class="footer-stat"><i class="material-icons-rounded">thumb_up</i> 45</div>
+                    <div class="footer-stat"><i class="material-icons-rounded">mode_comment</i> 12</div>
+                    <span style="margin-left:auto; font-size: 10px; font-weight: 900; color: var(--resolved-green)">RESOLVED</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <a href="#" class="report-fab">
+        <i class="material-icons-rounded">add_location_alt</i>
+        Report Issue
+    </a>
+</div>
+
+</body>
+</html>
