@@ -266,10 +266,13 @@ class _UserHomeState extends State<UserHome> {
         titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         title: Row(
           children: [
-            Icon(isAdmin ? Icons.admin_panel_settings : Icons.campaign, color: primaryColor),
+            if (isAdmin)
+               const Icon(Icons.admin_panel_settings, color: Color(0xFF3F51B5))
+            else
+               Image.asset('assets/logo.png', height: 40),
             const SizedBox(width: 10),
             Text(isAdmin ? "Admin Console" : "VoiceLocal", 
-              style: TextStyle(color: primaryColor, fontWeight: FontWeight.w900, fontSize: 18)),
+              style: const TextStyle(color: Color(0xFF3F51B5), fontWeight: FontWeight.w900, fontSize: 18)),
           ],
         ),
       ),
