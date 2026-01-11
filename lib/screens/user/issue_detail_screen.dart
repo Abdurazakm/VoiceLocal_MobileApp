@@ -520,9 +520,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
     String selectedCategory = currentIssue.category;
     String selectedRegion = currentIssue.region;
 
-    File? _newMediaFile;
-    bool _isNewVideo = false;
-    bool _isUploading = false;
+    File? newMediaFile;
+    bool isNewVideo = false;
+    bool isUploading = false;
 
     final List<String> categories = ['Pothole', 'Water Leak', 'Power Outage', 'Waste', 'Street Light', 'Road Block', 'Other'];
     final List<String> regions = ['Downtown', 'North District', 'East Side', 'West Park', 'South Valley', 'Industrial Zone'];
@@ -568,8 +568,8 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
 
                     if (pickedFile != null) {
                       setSheetState(() {
-                        _newMediaFile = File(pickedFile.path);
-                        _isNewVideo = source == 'video';
+                        newMediaFile = File(pickedFile.path);
+                        isNewVideo = source == 'video';
                       });
                     }
                   },
@@ -581,13 +581,13 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                         decoration: BoxDecoration(
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(15),
-                          image: _newMediaFile != null && !_isNewVideo
-                              ? DecorationImage(image: FileImage(_newMediaFile!), fit: BoxFit.cover)
-                              : (currentIssue.attachmentUrl != null && !currentIssue.isVideo && _newMediaFile == null
+                          image: newMediaFile != null && !isNewVideo
+                              ? DecorationImage(image: FileImage(newMediaFile!), fit: BoxFit.cover)
+                              : (currentIssue.attachmentUrl != null && !currentIssue.isVideo && newMediaFile == null
                                   ? DecorationImage(image: NetworkImage(currentIssue.attachmentUrl!), fit: BoxFit.cover)
                                   : null),
                         ),
-                        child: (_isNewVideo || (currentIssue.isVideo && _newMediaFile == null))
+                        child: (isNewVideo || (currentIssue.isVideo && newMediaFile == null))
                             ? const Center(
                                 child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -596,7 +596,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                                   Text("Video Attached", style: TextStyle(color: Colors.white)),
                                 ],
                               ))
-                            : (_newMediaFile == null && currentIssue.attachmentUrl == null
+                            : (newMediaFile == null && currentIssue.attachmentUrl == null
                                 ? const Icon(Icons.add_a_photo, size: 40, color: Colors.white54)
                                 : null),
                       ),
@@ -634,7 +634,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: categories.contains(selectedCategory) ? selectedCategory : 'Other',
+                        initialValue: categories.contains(selectedCategory) ? selectedCategory : 'Other',
                         decoration: InputDecoration(labelText: "Category", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                         items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 13)))).toList(),
                         onChanged: (val) => setSheetState(() => selectedCategory = val!),
@@ -643,7 +643,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: regions.contains(selectedRegion) ? selectedRegion : regions.first,
+                        initialValue: regions.contains(selectedRegion) ? selectedRegion : regions.first,
                         decoration: InputDecoration(labelText: "Region", border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                         items: regions.map((r) => DropdownMenuItem(value: r, child: Text(r, style: const TextStyle(fontSize: 13)))).toList(),
                         onChanged: (val) => setSheetState(() => selectedRegion = val!),
@@ -676,13 +676,13 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                       foregroundColor: Colors.white,
                       minimumSize: const Size(double.infinity, 56),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                  onPressed: _isUploading ? null : () async {
-                    setSheetState(() => _isUploading = true);
+                  onPressed: isUploading ? null : () async {
+                    setSheetState(() => isUploading = true);
 
                     String? finalUrl = currentIssue.attachmentUrl;
                     bool finalIsVideo = currentIssue.isVideo;
 
-                    if (_newMediaFile != null) {
+                    if (newMediaFile != null) {
                       // 1. Cleanup old storage file if it exists
                       if (currentIssue.attachmentUrl != null) {
                         try {
@@ -694,9 +694,9 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
                       // 2. Upload new file
                       String fileName = "update_${DateTime.now().millisecondsSinceEpoch}";
                       Reference ref = FirebaseStorage.instance.ref().child('issue_attachments/$fileName');
-                      await ref.putFile(_newMediaFile!);
+                      await ref.putFile(newMediaFile!);
                       finalUrl = await ref.getDownloadURL();
-                      finalIsVideo = _isNewVideo;
+                      finalIsVideo = isNewVideo;
                     }
 
                     // 3. Update Firestore
@@ -712,7 +712,7 @@ class _IssueDetailScreenState extends State<IssueDetailScreen> {
 
                     if (mounted) Navigator.pop(context);
                   },
-                  child: _isUploading
+                  child: isUploading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : const Text("Save Changes", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),

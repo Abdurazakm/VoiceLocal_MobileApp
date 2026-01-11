@@ -213,7 +213,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 height: 55,
                 child: OutlinedButton.icon(
                   onPressed: _handleGoogleSignIn,
-                  icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_\"G\"_logo.svg/1200px-Google_\"G\"_logo.svg.png', height: 22),
+                  icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_"G"_logo.svg/1200px-Google_"G"_logo.svg.png', height: 22),
                   label: Text("Continue with Google", style: GoogleFonts.inter(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 15)),
                   style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), side: BorderSide(color: Colors.grey[300]!)),
                 ),

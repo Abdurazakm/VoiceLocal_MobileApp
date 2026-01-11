@@ -19,8 +19,13 @@ class AdminNotificationsScreen extends StatelessWidget {
 
     // Query filters notifications by the admin's assigned sector
     Query query = FirebaseFirestore.instance.collection('Notifications')
-        .where('sector', isEqualTo: sector)
-        .orderBy('timestamp', descending: true);
+        .where('sector', isEqualTo: sector);
+
+    if (region != null) {
+      query = query.where('region', isEqualTo: region);
+    }
+
+    query = query.orderBy('timestamp', descending: true);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
@@ -180,10 +185,15 @@ class AdminNotificationsScreen extends StatelessWidget {
   }
 
   Future<void> _markAllAsRead(String userId) async {
-    var snapshots = await FirebaseFirestore.instance
+    Query query = FirebaseFirestore.instance
         .collection('Notifications')
-        .where('sector', isEqualTo: sector)
-        .get();
+        .where('sector', isEqualTo: sector);
+
+    if (region != null) {
+      query = query.where('region', isEqualTo: region);
+    }
+
+    var snapshots = await query.get();
 
     WriteBatch batch = FirebaseFirestore.instance.batch();
     for (var doc in snapshots.docs) {

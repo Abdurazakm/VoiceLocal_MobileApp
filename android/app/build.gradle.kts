@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.abdurazak.voicelocal"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -44,3 +44,15 @@ flutter {
 }
 apply(plugin = "com.google.gms.google-services")
 
+// Project-level android/build.gradle.kts
+subprojects {
+    afterEvaluate {
+        val project = this
+        if (project.extensions.findByName("android") != null) {
+            val android = project.extensions.getByName("android") as com.android.build.gradle.BaseExtension
+            if (android.namespace == null) {
+                android.namespace = "com.patch." + project.name.replace("-", ".")
+            }
+        }
+    }
+}

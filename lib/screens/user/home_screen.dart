@@ -38,6 +38,7 @@ class _UserHomeState extends State<UserHome> {
   String userStr = "";
   String userRole = "user"; 
   String? adminSector;
+  String? adminRegion; // Added adminRegion
 
   @override
   void initState() {
@@ -67,6 +68,7 @@ class _UserHomeState extends State<UserHome> {
             userRole = data?['role'] ?? 'user';
             // Ensure this field matches your Firestore "Users" collection field name
             adminSector = data?['assignedSector'] ?? data?['sector']; 
+            adminRegion = data?['assignedRegion']; // Capture assignedRegion
           });
         }
       } catch (e) {
@@ -87,7 +89,7 @@ class _UserHomeState extends State<UserHome> {
     if (userRole == 'sector_admin' && adminSector != null) {
       query = query
           .where('category', isEqualTo: _toTitleCase(adminSector!))
-          .where('region', isEqualTo: _toTitleCase(userReg));
+          .where('region', isEqualTo: _toTitleCase(adminRegion ?? userReg)); // Use adminRegion
     }
 
     _realtimeSubscription = query
@@ -147,7 +149,7 @@ class _UserHomeState extends State<UserHome> {
       if (userRole == 'sector_admin' && adminSector != null) {
         query = query
             .where('category', isEqualTo: _toTitleCase(adminSector!))
-            .where('region', isEqualTo: _toTitleCase(userReg));
+            .where('region', isEqualTo: _toTitleCase(adminRegion ?? userReg)); // Use adminRegion
       }
       
       query = query.orderBy('createdAt', descending: true).limit(10);
@@ -304,10 +306,11 @@ class _UserHomeState extends State<UserHome> {
 
   Widget _buildAdminStats(bool isAdmin) {
     Query query = FirebaseFirestore.instance.collection('Issues');
+    // SECTOR ADMIN FILTERING LOGIC
     if (userRole == 'sector_admin' && adminSector != null) {
       query = query
           .where('category', isEqualTo: _toTitleCase(adminSector!))
-          .where('region', isEqualTo: _toTitleCase(userReg));
+          .where('region', isEqualTo: _toTitleCase(adminRegion ?? userReg));
     }
 
     return StreamBuilder<QuerySnapshot>(

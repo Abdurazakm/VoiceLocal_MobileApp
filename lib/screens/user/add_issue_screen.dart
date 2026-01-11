@@ -179,7 +179,7 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
                 ),
                 const SizedBox(height: 15),
                 DropdownButtonFormField<String>(
-                  value: _selectedRegion,
+                  initialValue: _selectedRegion,
                   decoration: _inputStyle("Region", Icons.map),
                   items: _regions.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                   onChanged: (val) => setState(() => _selectedRegion = val),
@@ -188,7 +188,7 @@ class _AddIssueScreenState extends State<AddIssueScreen> {
                 const SizedBox(height: 25),
                 _sectionHeader("Department / Sector"),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   decoration: _inputStyle("Responsible Sector", Icons.business_center),
                   items: _sectors.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (val) => setState(() => _selectedCategory = val),

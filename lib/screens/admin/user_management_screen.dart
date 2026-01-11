@@ -82,7 +82,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               children: [
                 _buildFieldLabel("System Role"),
                 DropdownButtonFormField<String>(
-                  value: selectedRole,
+                  initialValue: selectedRole,
                   decoration: _inputDecoration(),
                   items: ['user', 'sector_admin', 'super_admin'].map((role) {
                     return DropdownMenuItem(
@@ -97,7 +97,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(height: 16),
                   _buildFieldLabel("Department / Sector"),
                   DropdownButtonFormField<String>(
-                    value: selectedSector,
+                    initialValue: selectedSector,
                     decoration: _inputDecoration(),
                     items: _sectors.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                     onChanged: (val) => setDialogState(() => selectedSector = val!),
@@ -105,7 +105,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(height: 16),
                   _buildFieldLabel("Regional Jurisdiction"),
                   DropdownButtonFormField<String>(
-                    value: selectedRegion,
+                    initialValue: selectedRegion,
                     decoration: _inputDecoration(),
                     items: _regions.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
                     onChanged: (val) => setDialogState(() => selectedRegion = val!),

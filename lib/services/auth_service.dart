@@ -85,7 +85,7 @@ class AuthService {
         await GoogleSignIn.instance.initialize();
 
         // 2. Use authenticate() instead of signIn()
-        final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
+        final GoogleSignInAccount googleUser = await GoogleSignIn.instance.authenticate();
         
         if (googleUser == null) return null;
 

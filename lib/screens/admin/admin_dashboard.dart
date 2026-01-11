@@ -218,11 +218,15 @@ void _showSeedConfirmation(BuildContext context) {
 }
 
   Widget _buildNotificationBadge(BuildContext context) {
+    Query notificationQuery = FirebaseFirestore.instance.collection('Notifications')
+        .where('sector', isEqualTo: currentUser.assignedSector);
+    
+    if (currentUser.assignedRegion != null) {
+      notificationQuery = notificationQuery.where('region', isEqualTo: currentUser.assignedRegion);
+    }
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('Notifications')
-          .where('sector', isEqualTo: currentUser.assignedSector)
-          .snapshots(),
+      stream: notificationQuery.snapshots(),
       builder: (context, snapshot) {
         int unreadCount = 0;
         if (snapshot.hasData) {
