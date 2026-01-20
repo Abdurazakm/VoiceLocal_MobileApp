@@ -17,10 +17,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _regionController = TextEditingController();
   final _streetController = TextEditingController();
-  
+
   final AuthService _auth = AuthService();
   bool _isLoading = false;
-  
+  String? _selectedRegion;
+
+  static const List<String> _ethiopianRegions = [
+    'Addis Ababa',
+    'Afar',
+    'Amhara',
+    'Benishangul-Gumuz',
+    'Dire Dawa',
+    'Gambela',
+    'Harari',
+    'Oromia',
+    'Sidama',
+    'Somali',
+    'South West Ethiopia Peoples',
+    'Southern Nations, Nationalities, and Peoples',
+    'Tigray',
+  ];
+
   // Visibility States
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -31,7 +48,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final userCredential = await _auth.signInWithGoogle();
       if (userCredential != null && userCredential.user != null) {
         final uid = userCredential.user!.uid;
-        final userDoc = await FirebaseFirestore.instance.collection('Users').doc(uid).get();
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(uid)
+            .get();
         final data = userDoc.data();
 
         if (data == null || (data['region'] ?? "").toString().isEmpty) {
@@ -59,38 +79,77 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 28, right: 28, top: 32,
+          left: 28,
+          right: 28,
+          top: 32,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             const SizedBox(height: 20),
-            Text("Complete Your Profile", style: GoogleFonts.poppins(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(
+              "Complete Your Profile",
+              style: GoogleFonts.poppins(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 12),
-            const Text("Help us connect you with your local community.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            const Text(
+              "Help us connect you with your local community.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
             const SizedBox(height: 30),
-            _buildTextField(controller: _regionController, label: "Region / Sub-City", icon: Icons.map_outlined),
-            _buildTextField(controller: _streetController, label: "Street Name", icon: Icons.location_on_outlined),
+            _buildRegionDropdown(label: "Region / Sub-City"),
+            _buildTextField(
+              controller: _streetController,
+              label: "Street Name",
+              icon: Icons.location_on_outlined,
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_regionController.text.isNotEmpty && _streetController.text.isNotEmpty) {
-                    await _auth.updateUserProfile(uid, region: _regionController.text.trim(), street: _streetController.text.trim());
-                    if (context.mounted) { Navigator.pop(context); Navigator.pop(context); }
+                  if (_regionController.text.isNotEmpty &&
+                      _streetController.text.isNotEmpty) {
+                    await _auth.updateUserProfile(
+                      uid,
+                      region: _regionController.text.trim(),
+                      street: _streetController.text.trim(),
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      Navigator.pop(context);
+                    }
                   } else {
                     _showError("Please fill both fields");
                   }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 0,
                 ),
-                child: const Text("Finalize Registration", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "Finalize Registration",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 40),
@@ -101,7 +160,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _handleRegister() async {
-    if ([_nameController, _emailController, _passwordController, _regionController, _streetController].any((c) => c.text.trim().isEmpty)) {
+    if ([
+      _nameController,
+      _emailController,
+      _passwordController,
+      _regionController,
+      _streetController,
+    ].any((c) => c.text.trim().isEmpty)) {
       _showError("All fields are required");
       return;
     }
@@ -128,12 +193,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message), 
-      backgroundColor: Colors.redAccent, 
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   Widget _buildSectionHeader(String title) {
@@ -141,7 +208,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12.0),
       child: Row(
         children: [
-          Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.indigo)),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.indigo,
+            ),
+          ),
           const SizedBox(width: 10),
           const Expanded(child: Divider(thickness: 0.5)),
         ],
@@ -150,13 +224,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Widget _buildTextField({
-    required TextEditingController controller, 
-    required String label, 
-    required IconData icon, 
-    bool isPassword = false, 
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
     bool obscureText = false,
     VoidCallback? onSuffixTap,
-    TextInputType type = TextInputType.text
+    TextInputType type = TextInputType.text,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 18.0),
@@ -169,7 +243,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           labelText: label,
           labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
           prefixIcon: Icon(icon, color: Colors.indigo[400], size: 22),
-          suffixIcon: isPassword 
+          suffixIcon: isPassword
               ? IconButton(
                   icon: Icon(
                     obscureText ? Icons.visibility_off : Icons.visibility,
@@ -181,11 +255,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
               : null,
           filled: true,
           fillColor: Colors.grey[50],
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey[200]!)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.indigo, width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.indigo, width: 1.5),
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRegionDropdown({required String label}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18.0),
+      child: DropdownButtonFormField<String>(
+        value: _selectedRegion,
+        items: _ethiopianRegions
+            .map(
+              (region) => DropdownMenuItem<String>(
+                value: region,
+                child: Text(region, style: const TextStyle(fontSize: 15)),
+              ),
+            )
+            .toList(),
+        onChanged: (value) {
+          setState(() {
+            _selectedRegion = value;
+            _regionController.text = value ?? '';
+          });
+        },
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+          prefixIcon: Icon(
+            Icons.map_outlined,
+            color: Colors.indigo[400],
+            size: 22,
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Colors.indigo, width: 1.5),
+          ),
+        ),
+        icon: const Icon(Icons.arrow_drop_down),
       ),
     );
   }
@@ -194,7 +331,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(elevation: 0, backgroundColor: Colors.white, leading: const BackButton(color: Colors.black)),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: const BackButton(color: Colors.black),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28.0),
@@ -203,50 +344,101 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               Center(child: Image.asset('assets/logo.png', height: 120)),
               const SizedBox(height: 24),
-              Text("Create Account", style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black)),
+              Text(
+                "Create Account",
+                style: GoogleFonts.poppins(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
               const SizedBox(height: 8),
-              Text("Sign up to start reporting and helping your local community.", style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600])),
+              Text(
+                "Sign up to start reporting and helping your local community.",
+                style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+              ),
               const SizedBox(height: 32),
-              
+
               SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: OutlinedButton.icon(
                   onPressed: _handleGoogleSignIn,
-                  icon: Image.network('https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_"G"_logo.svg/1200px-Google_"G"_logo.svg.png', height: 22),
-                  label: Text("Continue with Google", style: GoogleFonts.inter(color: Colors.black87, fontWeight: FontWeight.w600, fontSize: 15)),
-                  style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), side: BorderSide(color: Colors.grey[300]!)),
+                  icon: Image.network(
+                    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_"G"_logo.svg/1200px-Google_"G"_logo.svg.png',
+                    height: 22,
+                  ),
+                  label: Text(
+                    "Continue with Google",
+                    style: GoogleFonts.inter(
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    side: BorderSide(color: Colors.grey[300]!),
+                  ),
                 ),
               ),
 
               const SizedBox(height: 24),
-              Center(child: Text("OR REGISTER WITH EMAIL", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey[400], letterSpacing: 1.2))),
+              Center(
+                child: Text(
+                  "OR REGISTER WITH EMAIL",
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[400],
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
 
               _buildSectionHeader("Personal Information"),
-              _buildTextField(controller: _nameController, label: "Full Name", icon: Icons.person_outline),
-              _buildTextField(controller: _emailController, label: "Email Address", icon: Icons.email_outlined, type: TextInputType.emailAddress),
-              
+              _buildTextField(
+                controller: _nameController,
+                label: "Full Name",
+                icon: Icons.person_outline,
+              ),
+              _buildTextField(
+                controller: _emailController,
+                label: "Email Address",
+                icon: Icons.email_outlined,
+                type: TextInputType.emailAddress,
+              ),
+
               _buildSectionHeader("Location Details"),
-              _buildTextField(controller: _regionController, label: "Region / Sub-City", icon: Icons.map_outlined),
-              _buildTextField(controller: _streetController, label: "Street / Neighborhood", icon: Icons.location_on_outlined),
+              _buildRegionDropdown(label: "Region / Sub-City"),
+              _buildTextField(
+                controller: _streetController,
+                label: "Street / Neighborhood",
+                icon: Icons.location_on_outlined,
+              ),
 
               _buildSectionHeader("Security"),
               _buildTextField(
-                controller: _passwordController, 
-                label: "Password", 
-                icon: Icons.lock_outline, 
+                controller: _passwordController,
+                label: "Password",
+                icon: Icons.lock_outline,
                 isPassword: true,
                 obscureText: _obscurePassword,
-                onSuffixTap: () => setState(() => _obscurePassword = !_obscurePassword),
+                onSuffixTap: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
               _buildTextField(
-                controller: _confirmPasswordController, 
-                label: "Confirm Password", 
-                icon: Icons.lock_reset_outlined, 
+                controller: _confirmPasswordController,
+                label: "Confirm Password",
+                icon: Icons.lock_reset_outlined,
                 isPassword: true,
                 obscureText: _obscureConfirmPassword,
-                onSuffixTap: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                onSuffixTap: () => setState(
+                  () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                ),
               ),
 
               const SizedBox(height: 32),
@@ -259,10 +451,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         onPressed: _handleRegister,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.indigo,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                           elevation: 0,
                         ),
-                        child: Text("Create Account", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        child: Text(
+                          "Create Account",
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
               ),
               const SizedBox(height: 24),
@@ -271,10 +472,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onPressed: () => Navigator.pop(context),
                   child: RichText(
                     text: TextSpan(
-                      style: GoogleFonts.inter(color: Colors.grey[600], fontSize: 14),
+                      style: GoogleFonts.inter(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
                       children: const [
                         TextSpan(text: "Already have an account? "),
-                        TextSpan(text: "Login", style: TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold)),
+                        TextSpan(
+                          text: "Login",
+                          style: TextStyle(
+                            color: Colors.indigo,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
